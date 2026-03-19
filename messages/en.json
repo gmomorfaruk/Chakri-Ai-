@@ -1,0 +1,247 @@
+{
+  "appName": "Chakri AI",
+  "home": "Home",
+  "profile": "Profile",
+  "portfolio": "Portfolio",
+  "jobs": "Jobs",
+  "jobHub": "Job Hub",
+  "jobTracker": "Job Tracker",
+  "jobMatching": "Job Matching",
+  "aiCareerCoach": "AI Career Coach",
+  "interviewCoach": "Interview Coach",
+  "learningCoach": "Career Learning AI",
+  "voiceVivaPractice": "Voice Viva Practice",
+  "quizPractice": "Quiz Practice",
+  "roadmapPlanner": "Roadmap Planner",
+  "tasks": "Tasks",
+  "notifications": "Notifications",
+  "admin": "Admin",
+  "signIn": "Sign In",
+  "signUp": "Sign Up",
+  "signOut": "Sign Out",
+  "language": "Language",
+  "theme": "Theme",
+  "dark": "Dark",
+  "light": "Light",
+  "loading": "Loading...",
+  "saving": "Saving...",
+  "save": "Save",
+  "cancel": "Cancel",
+  "edit": "Edit",
+  "delete": "Delete",
+  "description": "Description",
+  "notSet": "Not set",
+  "profileBuilder": "Profile Builder",
+  "profileBuilderHint": "Build your career profile with structured sections for portfolio and job matching.",
+  "profileCompletion": "Profile completion",
+  "profileBasics": "Profile Basics",
+  "profileBasicsHint": "Set your public profile details and portfolio visibility settings.",
+  "fullName": "Full name",
+  "avatarUrl": "Avatar URL",
+  "profileSummary": "Profile summary",
+  "publicProfile": "Make profile public",
+  "username": "Username (for /u/username)",
+  "saveProfile": "Save Profile",
+  "portfolioThemeMinimal": "Minimal",
+  "portfolioThemeClassic": "Classic",
+  "portfolioThemeModern": "Modern",
+  "education": "Education",
+  "educationHint": "Add your academic background.",
+  "institution": "Institution",
+  "degree": "Degree",
+  "fieldOfStudy": "Field of study",
+  "addEducation": "Add Education",
+  "emptyEducation": "No education entries yet.",
+  "skills": "Skills",
+  "skillsHint": "Add your technical and soft skills.",
+  "skillName": "Skill name",
+  "skillLevel": "Skill level",
+  "addSkill": "Add Skill",
+  "emptySkills": "No skills added yet.",
+  "projects": "Projects",
+  "projectsHint": "Showcase projects that demonstrate your capabilities.",
+  "projectTitle": "Project title",
+  "projectDescription": "Project description",
+  "projectUrl": "Project URL",
+  "addProject": "Add Project",
+  "emptyProjects": "No projects added yet.",
+  "experience": "Experience",
+  "experienceHint": "Add internships, jobs, and relevant roles.",
+  "company": "Company",
+  "jobTitle": "Job title",
+  "addExperience": "Add Experience",
+  "emptyExperience": "No experience entries yet.",
+  "documents": "Documents",
+  "documentsHint": "Store document metadata for resume, certificates, and proof files.",
+  "documentName": "Document name",
+  "documentUrl": "Document URL",
+  "documentType": "Document type",
+  "addDocument": "Add Document",
+  "emptyDocuments": "No document metadata added yet.",
+  "profileAuthRequired": "Please sign in to manage your profile.",
+  "profileValidationName": "Full name is required.",
+  "profileValidationEducation": "Institution is required for education.",
+  "profileValidationSkill": "Skill name is required.",
+  "profileValidationProject": "Project title is required.",
+  "profileValidationExperience": "Company and job title are required.",
+  "profileValidationDocument": "Document name and URL are required.",
+  "profileSupabaseMissing": "Supabase is not configured. Add environment variables to continue.",
+  "profileValidationUsername": "Username must be 3-30 chars using lowercase letters, numbers, dot, or underscore.",
+  "profileValidationPublicUsername": "Set a username before enabling public profile.",
+  "portfolioPublicStatus": "Public portfolio",
+  "publicEnabled": "Enabled",
+  "publicDisabled": "Disabled",
+  "portfolioShareUrl": "Shareable portfolio URL",
+  "portfolioSetUsernameHint": "Set a username in Profile Basics to generate a public portfolio URL."
+  ,"jobsModuleHint": "Post jobs, track applications, and manage follow-ups in one place."
+  ,"postJob": "Post a Job"
+  ,"location": "Location"
+  ,"applyUrl": "Apply URL"
+  ,"jobDescription": "Job description"
+  ,"submitForApproval": "Submit for approval"
+  ,"myJobPosts": "My Job Posts"
+  ,"emptyJobPosts": "You have not posted any jobs yet."
+  ,"approvedJobs": "Approved Jobs"
+  ,"emptyApprovedJobs": "No approved jobs available yet."
+  ,"applyNow": "Apply now"
+  ,"adminModeration": "Admin Moderation"
+  ,"approve": "Approve"
+  ,"reject": "Reject"
+  ,"emptyPendingModeration": "No pending posts for moderation."
+  ,"jobPostValidation": "Job title, company, and description are required."
+  ,"jobTrackerValidation": "Role title and company are required."
+  ,"notes": "Notes"
+  ,"addApplication": "Add Application"
+  ,"myApplications": "My Applications"
+  ,"emptyApplications": "No applications tracked yet."
+  ,"followUpReminder": "Follow-up reminder"
+  ,"generateFollowUpDraft": "Generate follow-up draft"
+  ,"jobMatchingHint": "Compare your profile skills with a job description to see fit and improvement areas."
+  ,"selectApprovedJob": "Select an approved job"
+  ,"useSelectedJob": "Use selected job description"
+  ,"analyzeJobMatch": "Analyze Match"
+  ,"pasteJobDescription": "Paste or write a full job description here..."
+  ,"profileSkillsSnapshot": "Profile Skills Snapshot"
+  ,"matchingResult": "Matching Result"
+  ,"noMatchingResult": "Run matching to see score, matched skills, and gaps."
+  ,"matchingScore": "Matching score"
+  ,"matchedSkills": "Matched skills"
+  ,"missingSkills": "Missing skills"
+  ,"improvementSuggestions": "Improvement suggestions"
+  ,"none": "None"
+  ,"noSuggestions": "No suggestions right now."
+  ,"jobMatchingValidation": "Please provide a job description for matching."
+  ,"jobHubHint": "Browse approved jobs and filter by role, location, and skills."
+  ,"searchByTitle": "Search by title"
+  ,"allLocations": "All locations"
+  ,"allSkills": "All skills"
+  ,"applyFilters": "Apply filters"
+  ,"jobAlreadyTracked": "This job is already in your tracker."
+  ,"requiredSkills": "Required skills (comma separated)"
+  ,"experienceMin": "Minimum experience (years)"
+  ,"experienceMax": "Maximum experience (years)"
+  ,"coachHint": "Practice interview and viva responses with AI guidance and instant answer evaluation."
+  ,"coachMode": "Coach mode"
+  ,"hrMode": "HR mode"
+  ,"technicalMode": "Technical mode"
+  ,"behavioralMode": "Behavioral mode"
+  ,"sessionHistory": "Session history"
+  ,"newSession": "New session"
+  ,"emptySessions": "No sessions yet. Start by sending your first answer."
+  ,"untitledSession": "Untitled session"
+  ,"noActiveSession": "No active session"
+  ,"coachEmptyChat": "Start practicing. Your AI coach will respond with questions and feedback."
+  ,"coachAssistant": "Coach"
+  ,"you": "You"
+  ,"coachInputPlaceholder": "Write your interview answer or ask for the next question..."
+  ,"coachThinking": "Thinking..."
+  ,"send": "Send"
+  ,"answerEvaluation": "Answer evaluation"
+  ,"emptyEvaluation": "Send a response to generate evaluation insights."
+  ,"clarity": "Clarity"
+  ,"confidence": "Confidence"
+  ,"relevance": "Relevance"
+  ,"feedback": "Feedback"
+  ,"coachAiFailed": "Failed to get AI response. Please try again."
+  ,"coachDefaultReply": "Please include more specific examples and measurable outcomes in your answer."
+  ,"coachSessionCreateFailed": "Could not create coach session."
+  ,"voiceHint": "Practice viva with your microphone. Speech is transcribed and sent to coach, and responses are spoken back."
+  ,"voiceStart": "Start mic"
+  ,"voiceStop": "Stop mic"
+  ,"sendToCoach": "Send to coach"
+  ,"micStatus": "Mic status"
+  ,"voiceListening": "Listening..."
+  ,"voiceSpeaking": "Speaking..."
+  ,"voiceStopped": "Stopped"
+  ,"voiceReady": "Ready"
+  ,"voiceUnsupported": "Voice API is not supported in this browser."
+  ,"voicePermissionDenied": "Microphone permission denied. Please allow microphone access."
+  ,"voiceError": "Voice error"
+  ,"voiceTranscriptRequired": "Please record or type a transcript before sending."
+  ,"transcript": "Transcript"
+  ,"emptyTranscript": "No transcript yet."
+  ,"emptyVoiceReply": "No coach voice reply yet."
+  ,"fillerWords": "Filler words (placeholder)"
+  ,"confidenceEstimate": "Confidence estimate (placeholder)"
+  ,"tasksModuleHint": "Plan your preparation roadmap, manage tasks, and practice quizzes in one workspace."
+  ,"taskReminders": "Task reminders"
+  ,"roadmapCreate": "Create roadmap"
+  ,"roadmapTitle": "Roadmap title"
+  ,"roadmapTargetRole": "Target role"
+  ,"roadmapGoal": "Roadmap goal"
+  ,"generateRoadmap": "Generate roadmap"
+  ,"roadmapWeeks": "Roadmap weeks"
+  ,"selectRoadmap": "Select roadmap"
+  ,"emptyRoadmapWeeks": "No roadmap weeks yet. Create a roadmap first."
+  ,"week": "Week"
+  ,"roadmapValidation": "Roadmap title and goal are required."
+  ,"roadmapCreateFailed": "Failed to create roadmap."
+  ,"taskValidation": "Task title is required."
+  ,"taskManager": "Task manager"
+  ,"taskTitle": "Task title"
+  ,"addTask": "Add task"
+  ,"taskList": "Task list"
+  ,"emptyTasks": "No tasks yet."
+  ,"dueDate": "Due date"
+  ,"noDueDate": "No due date"
+  ,"statusTodo": "To do"
+  ,"statusInProgress": "In progress"
+  ,"statusDone": "Done"
+  ,"priorityLow": "Low priority"
+  ,"priorityMedium": "Medium priority"
+  ,"priorityHigh": "High priority"
+  ,"quizGenerator": "Quiz generator"
+  ,"quizTopic": "Quiz topic"
+  ,"generateQuiz": "Generate quiz"
+  ,"quizAttempts": "Quiz attempts"
+  ,"emptyQuizAttempts": "No quiz attempts yet."
+  ,"score": "Score"
+  ,"selectQuiz": "Select quiz"
+  ,"emptyQuiz": "No quiz selected. Generate or select one to start."
+  ,"submitQuiz": "Submit quiz"
+  ,"quizCreateFailed": "Failed to create quiz."
+  ,"notificationsHint": "Track job updates, reminders, and important system alerts."
+  ,"markAllRead": "Mark all as read"
+  ,"emptyNotifications": "No notifications yet."
+  ,"open": "Open"
+  ,"markRead": "Mark read"
+  ,"adminHint": "Review moderation queues and monitor platform activities."
+  ,"adminAccessDenied": "You do not have admin access."
+  ,"pendingJobsMetric": "Pending jobs"
+  ,"activityLogsMetric": "Activity logs"
+  ,"openSecurityMetric": "Open security"
+  ,"criticalSecurityMetric": "Critical security"
+  ,"activityLogsTitle": "Recent activity logs"
+  ,"securityEventsTitle": "Security events"
+  ,"emptyActivityLogs": "No activity logs yet."
+  ,"emptySecurityEvents": "No security events yet."
+  ,"coachLearnHint": "Learn career strategy for Bangladesh job categories with a normal AI assistant."
+  ,"coachLearnTopic": "Learning focus"
+  ,"coachLearnGeneral": "General Career"
+  ,"coachLearnIt": "IT and Software"
+  ,"coachLearnGovt": "Government and BCS"
+  ,"coachLearnBank": "Bank and Finance"
+  ,"coachLearnNgo": "NGO and Development"
+  ,"coachLearnEmptyChat": "Ask anything about jobs, skills, CVs, or preparation in Bangladesh."
+  ,"coachLearnInputPlaceholder": "Ask a career learning question (example: How should I prepare for a junior software role in Bangladesh?)"
+}

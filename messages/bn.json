@@ -1,0 +1,247 @@
+{
+  "appName": "চাকরি এআই",
+  "home": "হোম",
+  "profile": "প্রোফাইল",
+  "portfolio": "পোর্টফোলিও",
+  "jobs": "চাকরি",
+  "jobHub": "চাকরি হাব",
+  "jobTracker": "চাকরি ট্র্যাকার",
+  "jobMatching": "চাকরি মিল",
+  "aiCareerCoach": "এআই ক্যারিয়ার কোচ",
+  "interviewCoach": "ইন্টারভিউ কোচ",
+  "learningCoach": "ক্যারিয়ার লার্নিং এআই",
+  "voiceVivaPractice": "ভয়েস ভাইভা প্র্যাকটিস",
+  "quizPractice": "কুইজ প্র্যাকটিস",
+  "roadmapPlanner": "রোডম্যাপ পরিকল্পক",
+  "tasks": "টাস্ক",
+  "notifications": "নোটিফিকেশন",
+  "admin": "অ্যাডমিন",
+  "signIn": "সাইন ইন",
+  "signUp": "সাইন আপ",
+  "signOut": "সাইন আউট",
+  "language": "ভাষা",
+  "theme": "থিম",
+  "dark": "ডার্ক",
+  "light": "লাইট",
+  "loading": "লোড হচ্ছে...",
+  "saving": "সংরক্ষণ হচ্ছে...",
+  "save": "সংরক্ষণ",
+  "cancel": "বাতিল",
+  "edit": "সম্পাদনা",
+  "delete": "মুছুন",
+  "description": "বিবরণ",
+  "notSet": "সেট করা নেই",
+  "profileBuilder": "প্রোফাইল বিল্ডার",
+  "profileBuilderHint": "পোর্টফোলিও ও জব ম্যাচিংয়ের জন্য গঠনমূলক সেকশনে আপনার ক্যারিয়ার প্রোফাইল তৈরি করুন।",
+  "profileCompletion": "প্রোফাইল সম্পূর্ণতা",
+  "profileBasics": "প্রোফাইলের মূল তথ্য",
+  "profileBasicsHint": "পাবলিক প্রোফাইল তথ্য ও পোর্টফোলিও দৃশ্যমানতা নির্ধারণ করুন।",
+  "fullName": "পূর্ণ নাম",
+  "avatarUrl": "অ্যাভাটার URL",
+  "profileSummary": "প্রোফাইল সারাংশ",
+  "publicProfile": "প্রোফাইল পাবলিক করুন",
+  "username": "ইউজারনেম (/u/username)",
+  "saveProfile": "প্রোফাইল সংরক্ষণ",
+  "portfolioThemeMinimal": "মিনিমাল",
+  "portfolioThemeClassic": "ক্লাসিক",
+  "portfolioThemeModern": "মডার্ন",
+  "education": "শিক্ষা",
+  "educationHint": "আপনার একাডেমিক তথ্য যুক্ত করুন।",
+  "institution": "প্রতিষ্ঠান",
+  "degree": "ডিগ্রি",
+  "fieldOfStudy": "বিষয়",
+  "addEducation": "শিক্ষা যোগ করুন",
+  "emptyEducation": "এখনও কোনো শিক্ষা তথ্য নেই।",
+  "skills": "দক্ষতা",
+  "skillsHint": "টেকনিক্যাল ও সফট স্কিল যুক্ত করুন।",
+  "skillName": "স্কিলের নাম",
+  "skillLevel": "স্কিল লেভেল",
+  "addSkill": "স্কিল যোগ করুন",
+  "emptySkills": "এখনও কোনো স্কিল যোগ করা হয়নি।",
+  "projects": "প্রজেক্ট",
+  "projectsHint": "আপনার সক্ষমতা দেখায় এমন প্রজেক্ট যুক্ত করুন।",
+  "projectTitle": "প্রজেক্ট শিরোনাম",
+  "projectDescription": "প্রজেক্ট বিবরণ",
+  "projectUrl": "প্রজেক্ট URL",
+  "addProject": "প্রজেক্ট যোগ করুন",
+  "emptyProjects": "এখনও কোনো প্রজেক্ট যোগ করা হয়নি।",
+  "experience": "অভিজ্ঞতা",
+  "experienceHint": "ইন্টার্নশিপ, চাকরি ও সংশ্লিষ্ট ভূমিকা যুক্ত করুন।",
+  "company": "কোম্পানি",
+  "jobTitle": "পদের নাম",
+  "addExperience": "অভিজ্ঞতা যোগ করুন",
+  "emptyExperience": "এখনও কোনো অভিজ্ঞতা তথ্য নেই।",
+  "documents": "ডকুমেন্ট",
+  "documentsHint": "রিজিউমি, সার্টিফিকেট এবং প্রমাণপত্রের মেটাডাটা সংরক্ষণ করুন।",
+  "documentName": "ডকুমেন্টের নাম",
+  "documentUrl": "ডকুমেন্ট URL",
+  "documentType": "ডকুমেন্ট ধরন",
+  "addDocument": "ডকুমেন্ট যোগ করুন",
+  "emptyDocuments": "এখনও কোনো ডকুমেন্ট মেটাডাটা যোগ করা হয়নি।",
+  "profileAuthRequired": "প্রোফাইল ব্যবস্থাপনার জন্য সাইন ইন করুন।",
+  "profileValidationName": "পূর্ণ নাম আবশ্যক।",
+  "profileValidationEducation": "শিক্ষা তথ্যে প্রতিষ্ঠানের নাম আবশ্যক।",
+  "profileValidationSkill": "স্কিলের নাম আবশ্যক।",
+  "profileValidationProject": "প্রজেক্টের শিরোনাম আবশ্যক।",
+  "profileValidationExperience": "কোম্পানি ও পদের নাম আবশ্যক।",
+  "profileValidationDocument": "ডকুমেন্টের নাম ও URL আবশ্যক।",
+  "profileSupabaseMissing": "Supabase কনফিগার করা হয়নি। চালিয়ে যেতে environment variables যোগ করুন।",
+  "profileValidationUsername": "ইউজারনেম ৩-৩০ অক্ষরের হতে হবে (ছোট হাতের অক্ষর, সংখ্যা, ডট, আন্ডারস্কোর)।",
+  "profileValidationPublicUsername": "প্রোফাইল পাবলিক করার আগে ইউজারনেম সেট করুন।",
+  "portfolioPublicStatus": "পাবলিক পোর্টফোলিও",
+  "publicEnabled": "চালু",
+  "publicDisabled": "বন্ধ",
+  "portfolioShareUrl": "শেয়ারযোগ্য পোর্টফোলিও URL",
+  "portfolioSetUsernameHint": "পাবলিক পোর্টফোলিও URL পেতে Profile Basics এ ইউজারনেম সেট করুন।"
+  ,"jobsModuleHint": "এক জায়গায় চাকরি পোস্ট, আবেদন ট্র্যাক এবং ফলো-আপ ম্যানেজ করুন।"
+  ,"postJob": "চাকরি পোস্ট করুন"
+  ,"location": "লোকেশন"
+  ,"applyUrl": "আবেদনের URL"
+  ,"jobDescription": "চাকরির বিবরণ"
+  ,"submitForApproval": "অনুমোদনের জন্য পাঠান"
+  ,"myJobPosts": "আমার চাকরির পোস্ট"
+  ,"emptyJobPosts": "আপনি এখনও কোনো চাকরি পোস্ট করেননি।"
+  ,"approvedJobs": "অনুমোদিত চাকরি"
+  ,"emptyApprovedJobs": "এখনও কোনো অনুমোদিত চাকরি নেই।"
+  ,"applyNow": "এখনই আবেদন করুন"
+  ,"adminModeration": "অ্যাডমিন মডারেশন"
+  ,"approve": "অনুমোদন"
+  ,"reject": "প্রত্যাখ্যান"
+  ,"emptyPendingModeration": "মডারেশনের জন্য কোনো অপেক্ষমাণ পোস্ট নেই।"
+  ,"jobPostValidation": "চাকরির শিরোনাম, কোম্পানি এবং বিবরণ আবশ্যক।"
+  ,"jobTrackerValidation": "পদের নাম এবং কোম্পানি আবশ্যক।"
+  ,"notes": "নোট"
+  ,"addApplication": "আবেদন যোগ করুন"
+  ,"myApplications": "আমার আবেদনসমূহ"
+  ,"emptyApplications": "এখনও কোনো আবেদন ট্র্যাক করা হয়নি।"
+  ,"followUpReminder": "ফলো-আপ রিমাইন্ডার"
+  ,"generateFollowUpDraft": "ফলো-আপ ড্রাফট তৈরি করুন"
+  ,"jobMatchingHint": "চাকরির বিবরণের সাথে আপনার প্রোফাইল স্কিল মিলিয়ে ফিট ও উন্নতির জায়গা দেখুন।"
+  ,"selectApprovedJob": "অনুমোদিত চাকরি নির্বাচন করুন"
+  ,"useSelectedJob": "নির্বাচিত চাকরির বিবরণ ব্যবহার করুন"
+  ,"analyzeJobMatch": "ম্যাচ বিশ্লেষণ করুন"
+  ,"pasteJobDescription": "এখানে সম্পূর্ণ চাকরির বিবরণ পেস্ট বা লিখুন..."
+  ,"profileSkillsSnapshot": "প্রোফাইল স্কিল স্ন্যাপশট"
+  ,"matchingResult": "ম্যাচিং ফলাফল"
+  ,"noMatchingResult": "স্কোর, মিল থাকা স্কিল ও ঘাটতি দেখতে ম্যাচিং চালান।"
+  ,"matchingScore": "ম্যাচিং স্কোর"
+  ,"matchedSkills": "মিল থাকা স্কিল"
+  ,"missingSkills": "ঘাটতি থাকা স্কিল"
+  ,"improvementSuggestions": "উন্নতির পরামর্শ"
+  ,"none": "নেই"
+  ,"noSuggestions": "এই মুহূর্তে কোনো পরামর্শ নেই।"
+  ,"jobMatchingValidation": "ম্যাচিংয়ের জন্য অনুগ্রহ করে চাকরির বিবরণ দিন।"
+  ,"jobHubHint": "অনুমোদিত চাকরি দেখুন এবং পদ, লোকেশন ও স্কিল অনুযায়ী ফিল্টার করুন।"
+  ,"searchByTitle": "পদ দিয়ে খুঁজুন"
+  ,"allLocations": "সব লোকেশন"
+  ,"allSkills": "সব স্কিল"
+  ,"applyFilters": "ফিল্টার প্রয়োগ করুন"
+  ,"jobAlreadyTracked": "এই চাকরিটি ইতোমধ্যে আপনার ট্র্যাকার-এ আছে।"
+  ,"requiredSkills": "প্রয়োজনীয় স্কিল (কমা দিয়ে আলাদা করুন)"
+  ,"experienceMin": "সর্বনিম্ন অভিজ্ঞতা (বছর)"
+  ,"experienceMax": "সর্বোচ্চ অভিজ্ঞতা (বছর)"
+  ,"coachHint": "এআই সহায়তায় ইন্টারভিউ/ভাইভা অনুশীলন করুন এবং সাথে সাথে উত্তরের মূল্যায়ন দেখুন।"
+  ,"coachLearnHint": "বাংলাদেশের বিভিন্ন চাকরি ক্যাটাগরি নিয়ে স্বাভাবিক প্রশ্নোত্তর শেখার জন্য এআই ব্যবহার করুন।"
+  ,"coachMode": "কোচ মোড"
+  ,"hrMode": "এইচআর মোড"
+  ,"technicalMode": "টেকনিক্যাল মোড"
+  ,"behavioralMode": "বিহেভিয়োরাল মোড"
+  ,"sessionHistory": "সেশন ইতিহাস"
+  ,"newSession": "নতুন সেশন"
+  ,"emptySessions": "এখনও কোনো সেশন নেই। প্রথম উত্তর পাঠিয়ে শুরু করুন।"
+  ,"untitledSession": "নামহীন সেশন"
+  ,"noActiveSession": "কোনো সক্রিয় সেশন নেই"
+  ,"coachEmptyChat": "অনুশীলন শুরু করুন। এআই কোচ প্রশ্ন ও ফিডব্যাক দেবে।"
+  ,"coachAssistant": "কোচ"
+  ,"you": "আপনি"
+  ,"coachInputPlaceholder": "আপনার ইন্টারভিউ উত্তর লিখুন বা পরের প্রশ্ন চাইুন..."
+  ,"coachLearnTopic": "লার্নিং ফোকাস"
+  ,"coachLearnGeneral": "সাধারণ ক্যারিয়ার"
+  ,"coachLearnIt": "আইটি ও সফটওয়্যার"
+  ,"coachLearnGovt": "সরকারি ও বিসিএস"
+  ,"coachLearnBank": "ব্যাংক ও ফাইন্যান্স"
+  ,"coachLearnNgo": "এনজিও ও ডেভেলপমেন্ট"
+  ,"coachLearnEmptyChat": "বাংলাদেশে চাকরি, স্কিল, সিভি বা প্রস্তুতি নিয়ে যেকোনো প্রশ্ন করুন।"
+  ,"coachLearnInputPlaceholder": "ক্যারিয়ার লার্নিং প্রশ্ন লিখুন (উদাহরণ: বাংলাদেশে জুনিয়র সফটওয়্যার রোলে কীভাবে প্রস্তুতি নেব?)"
+  ,"coachThinking": "ভাবছে..."
+  ,"send": "পাঠান"
+  ,"answerEvaluation": "উত্তরের মূল্যায়ন"
+  ,"emptyEvaluation": "মূল্যায়ন পেতে একটি উত্তর পাঠান।"
+  ,"clarity": "স্বচ্ছতা"
+  ,"confidence": "আত্মবিশ্বাস"
+  ,"relevance": "প্রাসঙ্গিকতা"
+  ,"feedback": "ফিডব্যাক"
+  ,"coachAiFailed": "এআই উত্তর পাওয়া যায়নি। আবার চেষ্টা করুন।"
+  ,"coachDefaultReply": "উত্তরে আরও নির্দিষ্ট উদাহরণ ও মাপযোগ্য ফলাফল যুক্ত করুন।"
+  ,"coachSessionCreateFailed": "কোচ সেশন তৈরি করা যায়নি।"
+  ,"voiceHint": "মাইক্রোফোনে ভাইভা অনুশীলন করুন। কথাকে টেক্সটে রূপান্তর করে কোচে পাঠানো হবে, এবং উত্তর শোনানো হবে।"
+  ,"voiceStart": "মাইক চালু করুন"
+  ,"voiceStop": "মাইক বন্ধ করুন"
+  ,"sendToCoach": "কোচে পাঠান"
+  ,"micStatus": "মাইক স্ট্যাটাস"
+  ,"voiceListening": "শুনছে..."
+  ,"voiceSpeaking": "বলছে..."
+  ,"voiceStopped": "বন্ধ"
+  ,"voiceReady": "প্রস্তুত"
+  ,"voiceUnsupported": "এই ব্রাউজারে ভয়েস API সাপোর্ট নেই।"
+  ,"voicePermissionDenied": "মাইক্রোফোন অনুমতি দেওয়া হয়নি। অনুগ্রহ করে অনুমতি দিন।"
+  ,"voiceError": "ভয়েস ত্রুটি"
+  ,"voiceTranscriptRequired": "পাঠানোর আগে অনুগ্রহ করে ট্রান্সক্রিপ্ট রেকর্ড বা লিখুন।"
+  ,"transcript": "ট্রান্সক্রিপ্ট"
+  ,"emptyTranscript": "এখনও কোনো ট্রান্সক্রিপ্ট নেই।"
+  ,"emptyVoiceReply": "এখনও কোনো কোচ ভয়েস উত্তর নেই।"
+  ,"fillerWords": "ফিলার শব্দ (প্লেসহোল্ডার)"
+  ,"confidenceEstimate": "আত্মবিশ্বাস অনুমান (প্লেসহোল্ডার)"
+  ,"tasksModuleHint": "একই জায়গায় প্রস্তুতির রোডম্যাপ, টাস্ক ম্যানেজমেন্ট এবং কুইজ প্র্যাকটিস করুন।"
+  ,"taskReminders": "টাস্ক রিমাইন্ডার"
+  ,"roadmapCreate": "রোডম্যাপ তৈরি করুন"
+  ,"roadmapTitle": "রোডম্যাপ শিরোনাম"
+  ,"roadmapTargetRole": "লক্ষ্য পদের নাম"
+  ,"roadmapGoal": "রোডম্যাপ লক্ষ্য"
+  ,"generateRoadmap": "রোডম্যাপ তৈরি করুন"
+  ,"roadmapWeeks": "রোডম্যাপ সপ্তাহসমূহ"
+  ,"selectRoadmap": "রোডম্যাপ নির্বাচন করুন"
+  ,"emptyRoadmapWeeks": "এখনও কোনো রোডম্যাপ সপ্তাহ নেই। আগে রোডম্যাপ তৈরি করুন।"
+  ,"week": "সপ্তাহ"
+  ,"roadmapValidation": "রোডম্যাপ শিরোনাম এবং লক্ষ্য আবশ্যক।"
+  ,"roadmapCreateFailed": "রোডম্যাপ তৈরি করা যায়নি।"
+  ,"taskValidation": "টাস্কের শিরোনাম আবশ্যক।"
+  ,"taskManager": "টাস্ক ম্যানেজার"
+  ,"taskTitle": "টাস্ক শিরোনাম"
+  ,"addTask": "টাস্ক যোগ করুন"
+  ,"taskList": "টাস্ক তালিকা"
+  ,"emptyTasks": "এখনও কোনো টাস্ক নেই।"
+  ,"dueDate": "ডিউ তারিখ"
+  ,"noDueDate": "কোনো ডিউ তারিখ নেই"
+  ,"statusTodo": "করতে হবে"
+  ,"statusInProgress": "চলমান"
+  ,"statusDone": "সম্পন্ন"
+  ,"priorityLow": "কম অগ্রাধিকার"
+  ,"priorityMedium": "মাঝারি অগ্রাধিকার"
+  ,"priorityHigh": "উচ্চ অগ্রাধিকার"
+  ,"quizGenerator": "কুইজ জেনারেটর"
+  ,"quizTopic": "কুইজ টপিক"
+  ,"generateQuiz": "কুইজ তৈরি করুন"
+  ,"quizAttempts": "কুইজ প্রচেষ্টা"
+  ,"emptyQuizAttempts": "এখনও কোনো কুইজ প্রচেষ্টা নেই।"
+  ,"score": "স্কোর"
+  ,"selectQuiz": "কুইজ নির্বাচন করুন"
+  ,"emptyQuiz": "কোনো কুইজ নির্বাচন করা হয়নি। শুরু করতে কুইজ তৈরি বা নির্বাচন করুন।"
+  ,"submitQuiz": "কুইজ জমা দিন"
+  ,"quizCreateFailed": "কুইজ তৈরি করা যায়নি।"
+  ,"notificationsHint": "চাকরির আপডেট, রিমাইন্ডার এবং গুরুত্বপূর্ণ সিস্টেম অ্যালার্ট ট্র্যাক করুন।"
+  ,"markAllRead": "সবগুলো পড়া হয়েছে হিসেবে চিহ্নিত করুন"
+  ,"emptyNotifications": "এখনও কোনো নোটিফিকেশন নেই।"
+  ,"open": "খুলুন"
+  ,"markRead": "পড়া হয়েছে হিসেবে চিহ্নিত করুন"
+  ,"adminHint": "মডারেশন কিউ পর্যালোচনা করুন এবং প্ল্যাটফর্ম কার্যক্রম মনিটর করুন।"
+  ,"adminAccessDenied": "আপনার অ্যাডমিন অ্যাক্সেস নেই।"
+  ,"pendingJobsMetric": "অপেক্ষমাণ চাকরি"
+  ,"activityLogsMetric": "অ্যাক্টিভিটি লগ"
+  ,"openSecurityMetric": "খোলা নিরাপত্তা ইভেন্ট"
+  ,"criticalSecurityMetric": "জরুরি নিরাপত্তা ইভেন্ট"
+  ,"activityLogsTitle": "সাম্প্রতিক অ্যাক্টিভিটি লগ"
+  ,"securityEventsTitle": "নিরাপত্তা ইভেন্ট"
+  ,"emptyActivityLogs": "এখনও কোনো অ্যাক্টিভিটি লগ নেই।"
+  ,"emptySecurityEvents": "এখনও কোনো নিরাপত্তা ইভেন্ট নেই।"
+}
