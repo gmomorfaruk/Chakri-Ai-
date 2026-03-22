@@ -16,15 +16,6 @@ type SpeechRecognitionLike = {
   stop: () => void;
 };
 
-type SpeechRecognitionCtor = new () => SpeechRecognitionLike;
-
-declare global {
-  interface Window {
-    webkitSpeechRecognition?: SpeechRecognitionCtor;
-    SpeechRecognition?: SpeechRecognitionCtor;
-  }
-}
-
 const FILLER_WORDS = ["um", "uh", "like", "you know", "actually", "basically", "মানে", "এই", "উম"];
 
 export function VoiceVivaPanel({ mode }: { mode: CoachMode }) {
@@ -37,11 +28,11 @@ export function VoiceVivaPanel({ mode }: { mode: CoachMode }) {
   const [lastReply, setLastReply] = useState("");
   const [status, setStatus] = useState<string>("");
 
-  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const recognitionRef = useRef<any>(null);
 
   function ensureSupport() {
-    const ctor = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const ok = Boolean(ctor) && typeof window.speechSynthesis !== "undefined";
+    const ctor = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const ok = Boolean(ctor) && typeof (window as any).speechSynthesis !== "undefined";
     setSupported(ok);
     return { ok, ctor };
   }
@@ -124,12 +115,12 @@ export function VoiceVivaPanel({ mode }: { mode: CoachMode }) {
   }
 
   function speak(text: string) {
-    if (!window.speechSynthesis) {
+    if (!(window as any).speechSynthesis) {
       setStatus(t("voiceUnsupported"));
       return;
     }
 
-    window.speechSynthesis.cancel();
+    (window as any).speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = lang === "bn" ? "bn-BD" : "en-US";
     utterance.rate = 0.96;
@@ -144,7 +135,14 @@ export function VoiceVivaPanel({ mode }: { mode: CoachMode }) {
       setStatus(t("voiceReady"));
     };
 
-    window.speechSynthesis.speak(utterance);
+    (window as any).speechSynthesis.speak(utterance);
+  }
+
+  function stopSpeaking() {
+    if (!(window as any).speechSynthesis) return;
+    (window as any).speechSynthesis.cancel();
+    setSpeaking(false);
+    setStatus(t("voiceStopped"));
   }
 
   const fillerStats = useMemo(() => {
@@ -170,6 +168,9 @@ export function VoiceVivaPanel({ mode }: { mode: CoachMode }) {
         </button>
         <button onClick={stopListening} disabled={!listening} className="rounded-lg border border-border px-3 py-2 disabled:opacity-60">
           {t("voiceStop")}
+        </button>
+        <button onClick={stopSpeaking} disabled={!speaking} className="rounded-lg border border-border px-3 py-2 disabled:opacity-60">
+          {t("voiceStopSpeaking") ?? "Stop AI Voice"}
         </button>
         <button onClick={sendTranscript} className="rounded-lg border border-border px-3 py-2">
           {t("sendToCoach")}

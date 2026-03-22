@@ -158,13 +158,25 @@ export function generateFollowUpDraft(roleTitle: string, company: string) {
 // ============================================
 
 export async function getUserProfileForMatching(supabase: SupabaseClient, userId: string) {
-  const { data } = await supabase
+  const { data: profile } = await supabase
     .from("profiles")
-    .select("id, skills, target_role, preferred_location, years_experience")
+    .select("id, target_role, preferred_location, years_experience")
     .eq("id", userId)
     .maybeSingle();
 
-  return data;
+  const { data: skillsRows } = await supabase
+    .from("skills")
+    .select("name")
+    .eq("user_id", userId);
+
+  const skills = (skillsRows ?? []).map((s) => s.name).filter(Boolean);
+
+  return profile
+    ? {
+        ...profile,
+        skills,
+      }
+    : null;
 }
 
 export async function getUserJobMatches(supabase: SupabaseClient, userId: string, limit = 10) {

@@ -65,13 +65,27 @@ export async function POST(req: Request) {
     const userSkills = Array.isArray(userProfile.skills) ? userProfile.skills : [];
 
     // Step 3: Fetch all approved jobs
-    const { data: jobs, error: jobsError } = await getApprovedJobs(supabase);
-    if (jobsError || !jobs) {
+    let { data: jobs, error: jobsError } = await getApprovedJobs(supabase);
+    if (jobsError) {
       return NextResponse.json({ error: "Failed to fetch jobs" }, { status: 500 });
     }
 
+    // Fallback: if no approved jobs, use all jobs (pending/others) so users can still get scores
+    if (!jobs || jobs.length === 0) {
+      const { data: fallbackJobs, error: fallbackError } = await supabase
+        .from("jobs")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(100);
+
+      if (fallbackError) {
+        return NextResponse.json({ error: "Failed to fetch jobs" }, { status: 500 });
+      }
+      jobs = fallbackJobs ?? [];
+    }
+
     if (jobs.length === 0) {
-      return NextResponse.json({ matches: [] });
+      return NextResponse.json({ success: true, matches: [], message: "No jobs available for matching yet." });
     }
 
     // Step 4: Clear old matches and compute new ones

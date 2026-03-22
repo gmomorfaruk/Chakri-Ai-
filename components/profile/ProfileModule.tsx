@@ -57,7 +57,9 @@ export function ProfileModule() {
   const [userId, setUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
 
   const [bundle, setBundle] = useState<ProfileBundle>({
     profile: null,
@@ -77,10 +79,18 @@ export function ProfileModule() {
     is_public: false,
   });
 
-  const [newEducation, setNewEducation] = useState({ institution: "", degree: "", field_of_study: "" });
+  const [newEducation, setNewEducation] = useState({
+    institution: "",
+    degree: "",
+    field_of_study: "",
+    start_year: "",
+    end_year: "",
+    grade: "",
+    description: "",
+  });
   const [newSkill, setNewSkill] = useState({ name: "", level: "" });
-  const [newProject, setNewProject] = useState({ title: "", description: "", url: "" });
-  const [newExperience, setNewExperience] = useState({ company: "", title: "", description: "" });
+  const [newProject, setNewProject] = useState({ title: "", description: "", url: "", start_date: "", end_date: "" });
+  const [newExperience, setNewExperience] = useState({ company: "", title: "", description: "", start_date: "", end_date: "" });
   const [newDocument, setNewDocument] = useState({ name: "", url: "", type: "" });
 
   const [editingEducation, setEditingEducation] = useState<Education | null>(null);
@@ -90,6 +100,12 @@ export function ProfileModule() {
   const [editingDocument, setEditingDocument] = useState<DocumentMeta | null>(null);
 
   const completion = useMemo(() => getProfileCompletion(bundle), [bundle]);
+  const portfolioUrl = useMemo(() => {
+    const username = bundle.profile?.username;
+    if (!username) return null;
+    if (typeof window === "undefined") return `/u/${username}`;
+    return `${window.location.origin}/u/${username}`;
+  }, [bundle.profile?.username]);
 
   useEffect(() => {
     if (!supabase) {
@@ -141,6 +157,7 @@ export function ProfileModule() {
   }
 
   async function onSaveProfile() {
+    setSaveMessage(null);
     if (!supabase || !userId) return;
     if (!profileForm.full_name.trim()) {
       setError(t("profileValidationName"));
@@ -176,6 +193,8 @@ export function ProfileModule() {
 
     await reloadBundle(userId);
     setSaving(false);
+    setIsEditing(false);
+    setSaveMessage(t("profileSaved"));
   }
 
   async function onAddEducation() {
@@ -189,10 +208,10 @@ export function ProfileModule() {
       institution: newEducation.institution.trim(),
       degree: newEducation.degree.trim() || null,
       field_of_study: newEducation.field_of_study.trim() || null,
-      start_year: null,
-      end_year: null,
-      grade: null,
-      description: null,
+      start_year: newEducation.start_year ? Number(newEducation.start_year) : null,
+      end_year: newEducation.end_year ? Number(newEducation.end_year) : null,
+      grade: newEducation.grade.trim() || null,
+      description: newEducation.description.trim() || null,
     });
 
     if (insertError) {
@@ -200,7 +219,7 @@ export function ProfileModule() {
       return;
     }
 
-    setNewEducation({ institution: "", degree: "", field_of_study: "" });
+    setNewEducation({ institution: "", degree: "", field_of_study: "", start_year: "", end_year: "", grade: "", description: "" });
     await reloadBundle(userId);
   }
 
@@ -236,8 +255,8 @@ export function ProfileModule() {
       title: newProject.title.trim(),
       description: newProject.description.trim() || null,
       url: newProject.url.trim() || null,
-      start_date: null,
-      end_date: null,
+      start_date: newProject.start_date || null,
+      end_date: newProject.end_date || null,
     });
 
     if (insertError) {
@@ -245,7 +264,7 @@ export function ProfileModule() {
       return;
     }
 
-    setNewProject({ title: "", description: "", url: "" });
+    setNewProject({ title: "", description: "", url: "", start_date: "", end_date: "" });
     await reloadBundle(userId);
   }
 
@@ -260,8 +279,8 @@ export function ProfileModule() {
       company: newExperience.company.trim(),
       title: newExperience.title.trim(),
       description: newExperience.description.trim() || null,
-      start_date: null,
-      end_date: null,
+      start_date: newExperience.start_date || null,
+      end_date: newExperience.end_date || null,
     });
 
     if (insertError) {
@@ -269,7 +288,7 @@ export function ProfileModule() {
       return;
     }
 
-    setNewExperience({ company: "", title: "", description: "" });
+    setNewExperience({ company: "", title: "", description: "", start_date: "", end_date: "" });
     await reloadBundle(userId);
   }
 
@@ -310,24 +329,77 @@ export function ProfileModule() {
   return (
     <div className="space-y-6">
       <header className="rounded-2xl border border-border/30 bg-gradient-to-br from-card to-card/50 p-8 backdrop-blur-sm">
-        <div className="flex items-start justify-between">
-          <div>
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div className="space-y-2">
             <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
               {t("profileBuilder")}
             </h1>
-            <p className="mt-2 text-sm text-muted-foreground">{t("profileBuilderHint")}</p>
+            <p className="text-sm text-muted-foreground">{t("profileBuilderHint")}</p>
+            {portfolioUrl ? (
+              <div className="text-sm">
+                <span className="text-muted-foreground mr-2">{t("portfolioShareUrl")}</span>
+                <a href={portfolioUrl} className="text-primary underline break-all" target="_blank" rel="noreferrer">
+                  {portfolioUrl}
+                </a>
+              </div>
+            ) : null}
+            {saveMessage ? (
+              <div className="text-sm text-emerald-400">{saveMessage}</div>
+            ) : null}
           </div>
-          <div className="text-right">
-            <div className="text-sm font-semibold text-primary">{completion}% Complete</div>
-            <div className="text-xs text-muted-foreground mt-1">Profile Progress</div>
-          </div>
-        </div>
-        <div className="mt-6">
-          <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-primary via-accent to-primary transition-all duration-700 ease-out shadow-lg shadow-primary/30"
-              style={{ width: `${completion}%` }}
-            />
+          <div className="flex flex-col items-end gap-3">
+            <div className="text-right">
+              <div className="text-sm font-semibold text-primary">{completion}% Complete</div>
+              <div className="text-xs text-muted-foreground mt-1">Profile Progress</div>
+              <div className="mt-2 h-2 w-40 rounded-full bg-muted overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-primary via-accent to-primary transition-all duration-700 ease-out shadow-lg shadow-primary/30"
+                  style={{ width: `${completion}%` }}
+                />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              {isEditing ? (
+                <>
+                  <button
+                    onClick={onSaveProfile}
+                    disabled={saving}
+                    className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-60"
+                  >
+                    {saving ? t("saving") : t("saveProfile")}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIsEditing(false);
+                      setSaveMessage(null);
+                      if (bundle.profile) {
+                        setProfileForm({
+                          username: bundle.profile.username ?? "",
+                          full_name: bundle.profile.full_name ?? "",
+                          bio: bundle.profile.bio ?? "",
+                          avatar_url: bundle.profile.avatar_url ?? "",
+                          theme: bundle.profile.theme ?? "minimal",
+                          is_public: bundle.profile.is_public ?? false,
+                        });
+                      }
+                    }}
+                    className="rounded-lg border border-border px-4 py-2 text-sm font-semibold"
+                  >
+                    {t("cancel")}
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => {
+                    setIsEditing(true);
+                    setSaveMessage(null);
+                  }}
+                  className="rounded-lg border border-primary/60 px-4 py-2 text-sm font-semibold text-primary"
+                >
+                  {t("edit")}
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </header>
@@ -341,18 +413,21 @@ export function ProfileModule() {
             placeholder={t("username")}
             value={profileForm.username}
             onChange={(e) => setProfileForm((prev) => ({ ...prev, username: e.target.value }))}
+            disabled={!isEditing}
           />
           <input
             className="rounded-lg border border-border/50 bg-background/50 px-4 py-2.5 text-sm font-medium placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all duration-300"
             placeholder={t("fullName")}
             value={profileForm.full_name}
             onChange={(e) => setProfileForm((prev) => ({ ...prev, full_name: e.target.value }))}
+            disabled={!isEditing}
           />
           <input
             className="rounded-lg border border-border/50 bg-background/50 px-4 py-2.5 text-sm font-medium placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all duration-300"
             placeholder={t("avatarUrl")}
             value={profileForm.avatar_url}
             onChange={(e) => setProfileForm((prev) => ({ ...prev, avatar_url: e.target.value }))}
+            disabled={!isEditing}
           />
           <textarea
             className="md:col-span-2 rounded-lg border border-border/50 bg-background/50 px-4 py-2.5 text-sm font-medium placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all duration-300"
@@ -360,11 +435,13 @@ export function ProfileModule() {
             rows={4}
             value={profileForm.bio}
             onChange={(e) => setProfileForm((prev) => ({ ...prev, bio: e.target.value }))}
+            disabled={!isEditing}
           />
           <select
             className="rounded-lg border border-border/50 bg-background/50 px-4 py-2.5 text-sm font-medium focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all duration-300"
             value={profileForm.theme}
             onChange={(e) => setProfileForm((prev) => ({ ...prev, theme: e.target.value }))}
+            disabled={!isEditing}
           >
             <option value="minimal">{t("portfolioThemeMinimal")}</option>
             <option value="classic">{t("portfolioThemeClassic")}</option>
@@ -376,33 +453,28 @@ export function ProfileModule() {
               checked={profileForm.is_public}
               onChange={(e) => setProfileForm((prev) => ({ ...prev, is_public: e.target.checked }))}
               className="w-4 h-4 rounded"
+              disabled={!isEditing}
             />
             <span className="text-sm font-medium">{t("publicProfile")}</span>
           </label>
         </div>
-        <button
-          onClick={onSaveProfile}
-          disabled={saving}
-          className="group relative mt-2 w-full px-6 py-3 rounded-lg font-semibold text-sm overflow-hidden transition-all duration-300 disabled:opacity-60"
-        >
-          {/* Background gradient */}
-          <div className="absolute inset-0 bg-gradient-to-r from-primary to-accent group-hover:shadow-lg group-hover:shadow-primary/30 transition-all duration-300" />
-          {/* Shimmer effect on hover */}
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-500" />
-          {/* Content */}
-          <span className="relative text-primary-foreground block group-hover:scale-105 transition-transform duration-300">
-            {saving ? t("saving") : t("saveProfile")}
-          </span>
-        </button>
       </SectionCard>
 
       <SectionCard title={t("education")} description={t("educationHint")}>
-        <div className="grid gap-2 md:grid-cols-3">
-          <input className="rounded-lg border border-border bg-background px-3 py-2" placeholder={t("institution")} value={newEducation.institution} onChange={(e) => setNewEducation((prev) => ({ ...prev, institution: e.target.value }))} />
-          <input className="rounded-lg border border-border bg-background px-3 py-2" placeholder={t("degree")} value={newEducation.degree} onChange={(e) => setNewEducation((prev) => ({ ...prev, degree: e.target.value }))} />
-          <input className="rounded-lg border border-border bg-background px-3 py-2" placeholder={t("fieldOfStudy")} value={newEducation.field_of_study} onChange={(e) => setNewEducation((prev) => ({ ...prev, field_of_study: e.target.value }))} />
-        </div>
-        <button onClick={onAddEducation} className="rounded-lg border border-border px-3 py-2">{t("addEducation")}</button>
+        {isEditing ? (
+          <>
+            <div className="grid gap-2 md:grid-cols-3">
+              <input className="rounded-lg border border-border bg-background px-3 py-2" placeholder={t("institution")} value={newEducation.institution} onChange={(e) => setNewEducation((prev) => ({ ...prev, institution: e.target.value }))} />
+              <input className="rounded-lg border border-border bg-background px-3 py-2" placeholder={t("degree")} value={newEducation.degree} onChange={(e) => setNewEducation((prev) => ({ ...prev, degree: e.target.value }))} />
+              <input className="rounded-lg border border-border bg-background px-3 py-2" placeholder={t("fieldOfStudy")} value={newEducation.field_of_study} onChange={(e) => setNewEducation((prev) => ({ ...prev, field_of_study: e.target.value }))} />
+              <input className="rounded-lg border border-border bg-background px-3 py-2" placeholder={t("startYear")} value={newEducation.start_year} onChange={(e) => setNewEducation((prev) => ({ ...prev, start_year: e.target.value }))} />
+              <input className="rounded-lg border border-border bg-background px-3 py-2" placeholder={t("endYear")} value={newEducation.end_year} onChange={(e) => setNewEducation((prev) => ({ ...prev, end_year: e.target.value }))} />
+              <input className="rounded-lg border border-border bg-background px-3 py-2" placeholder={t("grade")} value={newEducation.grade} onChange={(e) => setNewEducation((prev) => ({ ...prev, grade: e.target.value }))} />
+              <textarea className="md:col-span-3 rounded-lg border border-border bg-background px-3 py-2" placeholder={t("description")} value={newEducation.description} onChange={(e) => setNewEducation((prev) => ({ ...prev, description: e.target.value }))} />
+            </div>
+            <button onClick={onAddEducation} className="rounded-lg border border-border px-3 py-2 mt-2">{t("addEducation")}</button>
+          </>
+        ) : null}
         {bundle.educations.length === 0 ? <p className="text-sm text-muted-foreground">{t("emptyEducation")}</p> : bundle.educations.map((item) => (
           <div key={item.id} className="rounded-lg border border-border p-3">
             {editingEducation?.id === item.id ? (
@@ -410,6 +482,10 @@ export function ProfileModule() {
                 <input className="rounded-lg border border-border bg-background px-3 py-2" value={editingEducation.institution} onChange={(e) => setEditingEducation({ ...editingEducation, institution: e.target.value })} />
                 <input className="rounded-lg border border-border bg-background px-3 py-2" value={editingEducation.degree ?? ""} onChange={(e) => setEditingEducation({ ...editingEducation, degree: e.target.value })} />
                 <input className="rounded-lg border border-border bg-background px-3 py-2" value={editingEducation.field_of_study ?? ""} onChange={(e) => setEditingEducation({ ...editingEducation, field_of_study: e.target.value })} />
+                <input className="rounded-lg border border-border bg-background px-3 py-2" value={editingEducation.start_year ?? ""} onChange={(e) => setEditingEducation({ ...editingEducation, start_year: e.target.value as any })} />
+                <input className="rounded-lg border border-border bg-background px-3 py-2" value={editingEducation.end_year ?? ""} onChange={(e) => setEditingEducation({ ...editingEducation, end_year: e.target.value as any })} />
+                <input className="rounded-lg border border-border bg-background px-3 py-2" value={editingEducation.grade ?? ""} onChange={(e) => setEditingEducation({ ...editingEducation, grade: e.target.value })} />
+                <textarea className="md:col-span-3 rounded-lg border border-border bg-background px-3 py-2" value={editingEducation.description ?? ""} onChange={(e) => setEditingEducation({ ...editingEducation, description: e.target.value })} />
                 <button className="rounded-lg bg-primary px-3 py-2 text-primary-foreground" onClick={async () => {
                   if (!supabase || !userId || !editingEducation) return;
                   await updateEducation(supabase, item.id, {
@@ -417,6 +493,10 @@ export function ProfileModule() {
                     institution: editingEducation.institution,
                     degree: editingEducation.degree,
                     field_of_study: editingEducation.field_of_study,
+                    start_year: editingEducation.start_year ? Number(editingEducation.start_year) : null,
+                    end_year: editingEducation.end_year ? Number(editingEducation.end_year) : null,
+                    grade: editingEducation.grade,
+                    description: editingEducation.description,
                   });
                   setEditingEducation(null);
                   await reloadBundle(userId);
@@ -428,15 +508,21 @@ export function ProfileModule() {
                 <div>
                   <p className="font-medium">{item.institution}</p>
                   <p className="text-sm text-muted-foreground">{item.degree ?? "-"} · {item.field_of_study ?? "-"}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {item.start_year ?? "-"} - {item.end_year ?? "-"} · {item.grade ?? "-"}
+                  </p>
+                  {item.description ? <p className="text-xs text-muted-foreground">{item.description}</p> : null}
                 </div>
-                <div className="flex gap-2">
-                  <button className="rounded-lg border border-border px-3 py-1.5" onClick={() => setEditingEducation(item)}>{t("edit")}</button>
-                  <button className="rounded-lg border border-red-500/40 px-3 py-1.5 text-red-400" onClick={async () => {
-                    if (!supabase || !userId) return;
-                    await deleteEducation(supabase, item.id);
-                    await reloadBundle(userId);
-                  }}>{t("delete")}</button>
-                </div>
+                {isEditing ? (
+                  <div className="flex gap-2">
+                    <button className="rounded-lg border border-border px-3 py-1.5" onClick={() => setEditingEducation(item)}>{t("edit")}</button>
+                    <button className="rounded-lg border border-red-500/40 px-3 py-1.5 text-red-400" onClick={async () => {
+                      if (!supabase || !userId) return;
+                      await deleteEducation(supabase, item.id);
+                      await reloadBundle(userId);
+                    }}>{t("delete")}</button>
+                  </div>
+                ) : null}
               </div>
             )}
           </div>
@@ -444,11 +530,15 @@ export function ProfileModule() {
       </SectionCard>
 
       <SectionCard title={t("skills")} description={t("skillsHint")}>
-        <div className="grid gap-2 md:grid-cols-2">
-          <input className="rounded-lg border border-border bg-background px-3 py-2" placeholder={t("skillName")} value={newSkill.name} onChange={(e) => setNewSkill((prev) => ({ ...prev, name: e.target.value }))} />
-          <input className="rounded-lg border border-border bg-background px-3 py-2" placeholder={t("skillLevel")} value={newSkill.level} onChange={(e) => setNewSkill((prev) => ({ ...prev, level: e.target.value }))} />
-        </div>
-        <button onClick={onAddSkill} className="rounded-lg border border-border px-3 py-2">{t("addSkill")}</button>
+        {isEditing ? (
+          <>
+            <div className="grid gap-2 md:grid-cols-2">
+              <input className="rounded-lg border border-border bg-background px-3 py-2" placeholder={t("skillName")} value={newSkill.name} onChange={(e) => setNewSkill((prev) => ({ ...prev, name: e.target.value }))} />
+              <input className="rounded-lg border border-border bg-background px-3 py-2" placeholder={t("skillLevel")} value={newSkill.level} onChange={(e) => setNewSkill((prev) => ({ ...prev, level: e.target.value }))} />
+            </div>
+            <button onClick={onAddSkill} className="rounded-lg border border-border px-3 py-2">{t("addSkill")}</button>
+          </>
+        ) : null}
         {bundle.skills.length === 0 ? <p className="text-sm text-muted-foreground">{t("emptySkills")}</p> : bundle.skills.map((item) => (
           <div key={item.id} className="rounded-lg border border-border p-3">
             {editingSkill?.id === item.id ? (
@@ -466,14 +556,16 @@ export function ProfileModule() {
             ) : (
               <div className="flex items-center justify-between">
                 <p>{item.name} <span className="text-sm text-muted-foreground">({item.level ?? t("notSet")})</span></p>
-                <div className="flex gap-2">
-                  <button className="rounded-lg border border-border px-3 py-1.5" onClick={() => setEditingSkill(item)}>{t("edit")}</button>
-                  <button className="rounded-lg border border-red-500/40 px-3 py-1.5 text-red-400" onClick={async () => {
-                    if (!supabase || !userId) return;
-                    await deleteSkill(supabase, item.id);
-                    await reloadBundle(userId);
-                  }}>{t("delete")}</button>
-                </div>
+                {isEditing ? (
+                  <div className="flex gap-2">
+                    <button className="rounded-lg border border-border px-3 py-1.5" onClick={() => setEditingSkill(item)}>{t("edit")}</button>
+                    <button className="rounded-lg border border-red-500/40 px-3 py-1.5 text-red-400" onClick={async () => {
+                      if (!supabase || !userId) return;
+                      await deleteSkill(supabase, item.id);
+                      await reloadBundle(userId);
+                    }}>{t("delete")}</button>
+                  </div>
+                ) : null}
               </div>
             )}
           </div>
@@ -481,12 +573,18 @@ export function ProfileModule() {
       </SectionCard>
 
       <SectionCard title={t("projects")} description={t("projectsHint")}>
-        <div className="grid gap-2 md:grid-cols-3">
-          <input className="rounded-lg border border-border bg-background px-3 py-2" placeholder={t("projectTitle")} value={newProject.title} onChange={(e) => setNewProject((prev) => ({ ...prev, title: e.target.value }))} />
-          <input className="rounded-lg border border-border bg-background px-3 py-2" placeholder={t("projectUrl")} value={newProject.url} onChange={(e) => setNewProject((prev) => ({ ...prev, url: e.target.value }))} />
-          <input className="rounded-lg border border-border bg-background px-3 py-2" placeholder={t("projectDescription")} value={newProject.description} onChange={(e) => setNewProject((prev) => ({ ...prev, description: e.target.value }))} />
-        </div>
-        <button onClick={onAddProject} className="rounded-lg border border-border px-3 py-2">{t("addProject")}</button>
+        {isEditing ? (
+          <>
+            <div className="grid gap-2 md:grid-cols-3">
+              <input className="rounded-lg border border-border bg-background px-3 py-2" placeholder={t("projectTitle")} value={newProject.title} onChange={(e) => setNewProject((prev) => ({ ...prev, title: e.target.value }))} />
+              <input className="rounded-lg border border-border bg-background px-3 py-2" placeholder={t("projectUrl")} value={newProject.url} onChange={(e) => setNewProject((prev) => ({ ...prev, url: e.target.value }))} />
+              <input className="rounded-lg border border-border bg-background px-3 py-2" placeholder={t("projectDescription")} value={newProject.description} onChange={(e) => setNewProject((prev) => ({ ...prev, description: e.target.value }))} />
+              <input className="rounded-lg border border-border bg-background px-3 py-2" type="date" placeholder={t("startDate")} value={newProject.start_date} onChange={(e) => setNewProject((prev) => ({ ...prev, start_date: e.target.value }))} />
+              <input className="rounded-lg border border-border bg-background px-3 py-2" type="date" placeholder={t("endDate")} value={newProject.end_date} onChange={(e) => setNewProject((prev) => ({ ...prev, end_date: e.target.value }))} />
+            </div>
+            <button onClick={onAddProject} className="rounded-lg border border-border px-3 py-2">{t("addProject")}</button>
+          </>
+        ) : null}
         {bundle.projects.length === 0 ? <p className="text-sm text-muted-foreground">{t("emptyProjects")}</p> : bundle.projects.map((item) => (
           <div key={item.id} className="rounded-lg border border-border p-3">
             {editingProject?.id === item.id ? (
@@ -494,6 +592,8 @@ export function ProfileModule() {
                 <input className="rounded-lg border border-border bg-background px-3 py-2" value={editingProject.title} onChange={(e) => setEditingProject({ ...editingProject, title: e.target.value })} />
                 <input className="rounded-lg border border-border bg-background px-3 py-2" value={editingProject.url ?? ""} onChange={(e) => setEditingProject({ ...editingProject, url: e.target.value })} />
                 <input className="rounded-lg border border-border bg-background px-3 py-2" value={editingProject.description ?? ""} onChange={(e) => setEditingProject({ ...editingProject, description: e.target.value })} />
+                <input className="rounded-lg border border-border bg-background px-3 py-2" type="date" value={editingProject.start_date ?? ""} onChange={(e) => setEditingProject({ ...editingProject, start_date: e.target.value })} />
+                <input className="rounded-lg border border-border bg-background px-3 py-2" type="date" value={editingProject.end_date ?? ""} onChange={(e) => setEditingProject({ ...editingProject, end_date: e.target.value })} />
                 <button className="rounded-lg bg-primary px-3 py-2 text-primary-foreground" onClick={async () => {
                   if (!supabase || !userId || !editingProject) return;
                   await updateProject(supabase, item.id, {
@@ -501,6 +601,8 @@ export function ProfileModule() {
                     title: editingProject.title,
                     url: editingProject.url,
                     description: editingProject.description,
+                    start_date: editingProject.start_date ?? null,
+                    end_date: editingProject.end_date ?? null,
                   });
                   setEditingProject(null);
                   await reloadBundle(userId);
@@ -512,16 +614,19 @@ export function ProfileModule() {
                 <div>
                   <p className="font-medium">{item.title}</p>
                   <p className="text-sm text-muted-foreground">{item.description ?? "-"}</p>
+                  <p className="text-xs text-muted-foreground">{item.start_date ?? "-"} → {item.end_date ?? "-"}</p>
                   {item.url ? <a href={item.url} target="_blank" rel="noreferrer" className="text-sm text-primary underline">{item.url}</a> : null}
                 </div>
-                <div className="flex gap-2">
-                  <button className="rounded-lg border border-border px-3 py-1.5" onClick={() => setEditingProject(item)}>{t("edit")}</button>
-                  <button className="rounded-lg border border-red-500/40 px-3 py-1.5 text-red-400" onClick={async () => {
-                    if (!supabase || !userId) return;
-                    await deleteProject(supabase, item.id);
-                    await reloadBundle(userId);
-                  }}>{t("delete")}</button>
-                </div>
+                {isEditing ? (
+                  <div className="flex gap-2">
+                    <button className="rounded-lg border border-border px-3 py-1.5" onClick={() => setEditingProject(item)}>{t("edit")}</button>
+                    <button className="rounded-lg border border-red-500/40 px-3 py-1.5 text-red-400" onClick={async () => {
+                      if (!supabase || !userId) return;
+                      await deleteProject(supabase, item.id);
+                      await reloadBundle(userId);
+                    }}>{t("delete")}</button>
+                  </div>
+                ) : null}
               </div>
             )}
           </div>
@@ -529,12 +634,18 @@ export function ProfileModule() {
       </SectionCard>
 
       <SectionCard title={t("experience")} description={t("experienceHint")}>
-        <div className="grid gap-2 md:grid-cols-3">
-          <input className="rounded-lg border border-border bg-background px-3 py-2" placeholder={t("company")} value={newExperience.company} onChange={(e) => setNewExperience((prev) => ({ ...prev, company: e.target.value }))} />
-          <input className="rounded-lg border border-border bg-background px-3 py-2" placeholder={t("jobTitle")} value={newExperience.title} onChange={(e) => setNewExperience((prev) => ({ ...prev, title: e.target.value }))} />
-          <input className="rounded-lg border border-border bg-background px-3 py-2" placeholder={t("description")} value={newExperience.description} onChange={(e) => setNewExperience((prev) => ({ ...prev, description: e.target.value }))} />
-        </div>
-        <button onClick={onAddExperience} className="rounded-lg border border-border px-3 py-2">{t("addExperience")}</button>
+        {isEditing ? (
+          <>
+            <div className="grid gap-2 md:grid-cols-3">
+              <input className="rounded-lg border border-border bg-background px-3 py-2" placeholder={t("company")} value={newExperience.company} onChange={(e) => setNewExperience((prev) => ({ ...prev, company: e.target.value }))} />
+              <input className="rounded-lg border border-border bg-background px-3 py-2" placeholder={t("jobTitle")} value={newExperience.title} onChange={(e) => setNewExperience((prev) => ({ ...prev, title: e.target.value }))} />
+              <input className="rounded-lg border border-border bg-background px-3 py-2" placeholder={t("description")} value={newExperience.description} onChange={(e) => setNewExperience((prev) => ({ ...prev, description: e.target.value }))} />
+              <input className="rounded-lg border border-border bg-background px-3 py-2" type="date" placeholder={t("startDate")} value={newExperience.start_date} onChange={(e) => setNewExperience((prev) => ({ ...prev, start_date: e.target.value }))} />
+              <input className="rounded-lg border border-border bg-background px-3 py-2" type="date" placeholder={t("endDate")} value={newExperience.end_date} onChange={(e) => setNewExperience((prev) => ({ ...prev, end_date: e.target.value }))} />
+            </div>
+            <button onClick={onAddExperience} className="rounded-lg border border-border px-3 py-2">{t("addExperience")}</button>
+          </>
+        ) : null}
         {bundle.experiences.length === 0 ? <p className="text-sm text-muted-foreground">{t("emptyExperience")}</p> : bundle.experiences.map((item) => (
           <div key={item.id} className="rounded-lg border border-border p-3">
             {editingExperience?.id === item.id ? (
@@ -542,6 +653,8 @@ export function ProfileModule() {
                 <input className="rounded-lg border border-border bg-background px-3 py-2" value={editingExperience.company} onChange={(e) => setEditingExperience({ ...editingExperience, company: e.target.value })} />
                 <input className="rounded-lg border border-border bg-background px-3 py-2" value={editingExperience.title} onChange={(e) => setEditingExperience({ ...editingExperience, title: e.target.value })} />
                 <input className="rounded-lg border border-border bg-background px-3 py-2" value={editingExperience.description ?? ""} onChange={(e) => setEditingExperience({ ...editingExperience, description: e.target.value })} />
+                <input className="rounded-lg border border-border bg-background px-3 py-2" type="date" value={editingExperience.start_date ?? ""} onChange={(e) => setEditingExperience({ ...editingExperience, start_date: e.target.value })} />
+                <input className="rounded-lg border border-border bg-background px-3 py-2" type="date" value={editingExperience.end_date ?? ""} onChange={(e) => setEditingExperience({ ...editingExperience, end_date: e.target.value })} />
                 <button className="rounded-lg bg-primary px-3 py-2 text-primary-foreground" onClick={async () => {
                   if (!supabase || !userId || !editingExperience) return;
                   await updateExperience(supabase, item.id, {
@@ -549,6 +662,8 @@ export function ProfileModule() {
                     company: editingExperience.company,
                     title: editingExperience.title,
                     description: editingExperience.description,
+                    start_date: editingExperience.start_date ?? null,
+                    end_date: editingExperience.end_date ?? null,
                   });
                   setEditingExperience(null);
                   await reloadBundle(userId);
@@ -560,15 +675,18 @@ export function ProfileModule() {
                 <div>
                   <p className="font-medium">{item.company}</p>
                   <p className="text-sm text-muted-foreground">{item.title}</p>
+                  <p className="text-xs text-muted-foreground">{item.start_date ?? "-"} → {item.end_date ?? "-"}</p>
                 </div>
-                <div className="flex gap-2">
-                  <button className="rounded-lg border border-border px-3 py-1.5" onClick={() => setEditingExperience(item)}>{t("edit")}</button>
-                  <button className="rounded-lg border border-red-500/40 px-3 py-1.5 text-red-400" onClick={async () => {
-                    if (!supabase || !userId) return;
-                    await deleteExperience(supabase, item.id);
-                    await reloadBundle(userId);
-                  }}>{t("delete")}</button>
-                </div>
+                {isEditing ? (
+                  <div className="flex gap-2">
+                    <button className="rounded-lg border border-border px-3 py-1.5" onClick={() => setEditingExperience(item)}>{t("edit")}</button>
+                    <button className="rounded-lg border border-red-500/40 px-3 py-1.5 text-red-400" onClick={async () => {
+                      if (!supabase || !userId) return;
+                      await deleteExperience(supabase, item.id);
+                      await reloadBundle(userId);
+                    }}>{t("delete")}</button>
+                  </div>
+                ) : null}
               </div>
             )}
           </div>
@@ -576,13 +694,17 @@ export function ProfileModule() {
       </SectionCard>
 
       <SectionCard title={t("documents")} description={t("documentsHint")}>
-        <div className="grid gap-2 md:grid-cols-3">
-          <input className="rounded-lg border border-border bg-background px-3 py-2" placeholder={t("documentName")} value={newDocument.name} onChange={(e) => setNewDocument((prev) => ({ ...prev, name: e.target.value }))} />
-          <input className="rounded-lg border border-border bg-background px-3 py-2" placeholder={t("documentUrl")} value={newDocument.url} onChange={(e) => setNewDocument((prev) => ({ ...prev, url: e.target.value }))} />
-          <input className="rounded-lg border border-border bg-background px-3 py-2" placeholder={t("documentType")}
-            value={newDocument.type} onChange={(e) => setNewDocument((prev) => ({ ...prev, type: e.target.value }))} />
-        </div>
-        <button onClick={onAddDocument} className="rounded-lg border border-border px-3 py-2">{t("addDocument")}</button>
+        {isEditing ? (
+          <>
+            <div className="grid gap-2 md:grid-cols-3">
+              <input className="rounded-lg border border-border bg-background px-3 py-2" placeholder={t("documentName")} value={newDocument.name} onChange={(e) => setNewDocument((prev) => ({ ...prev, name: e.target.value }))} />
+              <input className="rounded-lg border border-border bg-background px-3 py-2" placeholder={t("documentUrl")} value={newDocument.url} onChange={(e) => setNewDocument((prev) => ({ ...prev, url: e.target.value }))} />
+              <input className="rounded-lg border border-border bg-background px-3 py-2" placeholder={t("documentType")}
+                value={newDocument.type} onChange={(e) => setNewDocument((prev) => ({ ...prev, type: e.target.value }))} />
+            </div>
+            <button onClick={onAddDocument} className="rounded-lg border border-border px-3 py-2">{t("addDocument")}</button>
+          </>
+        ) : null}
         {bundle.documents.length === 0 ? <p className="text-sm text-muted-foreground">{t("emptyDocuments")}</p> : bundle.documents.map((item) => (
           <div key={item.id} className="rounded-lg border border-border p-3">
             {editingDocument?.id === item.id ? (
@@ -610,14 +732,16 @@ export function ProfileModule() {
                   <a href={item.url} target="_blank" rel="noreferrer" className="text-sm text-primary underline">{item.url}</a>
                   <p className="text-sm text-muted-foreground">{item.type ?? t("notSet")}</p>
                 </div>
-                <div className="flex gap-2">
-                  <button className="rounded-lg border border-border px-3 py-1.5" onClick={() => setEditingDocument(item)}>{t("edit")}</button>
-                  <button className="rounded-lg border border-red-500/40 px-3 py-1.5 text-red-400" onClick={async () => {
-                    if (!supabase || !userId) return;
-                    await deleteDocument(supabase, item.id);
-                    await reloadBundle(userId);
-                  }}>{t("delete")}</button>
-                </div>
+                {isEditing ? (
+                  <div className="flex gap-2">
+                    <button className="rounded-lg border border-border px-3 py-1.5" onClick={() => setEditingDocument(item)}>{t("edit")}</button>
+                    <button className="rounded-lg border border-red-500/40 px-3 py-1.5 text-red-400" onClick={async () => {
+                      if (!supabase || !userId) return;
+                      await deleteDocument(supabase, item.id);
+                      await reloadBundle(userId);
+                    }}>{t("delete")}</button>
+                  </div>
+                ) : null}
               </div>
             )}
           </div>
