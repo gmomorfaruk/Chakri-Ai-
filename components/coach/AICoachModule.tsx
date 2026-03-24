@@ -6,11 +6,21 @@ import { AIVoiceConversation } from "@/components/coach/AIVoiceConversation";
 import { PremiumChatInterface } from "@/components/coach/PremiumChatInterface";
 import { QuizPractice } from "@/components/coach/QuizPractice";
 import { ConversationalLearningAI } from "@/components/learning/ConversationalLearningAI";
+import { useSearchParams } from "next/navigation";
+
+function getInitialView(view: string | null): "chat" | "voice" | "quiz" | "learning" {
+  if (view === "voice" || view === "quiz" || view === "learning") {
+    return view;
+  }
+
+  return "chat";
+}
 
 export function AICoachModule() {
   const { t } = useI18n();
+  const searchParams = useSearchParams();
 
-  const [view, setView] = useState<"chat" | "voice" | "quiz" | "learning">("chat");
+  const [view, setView] = useState<"chat" | "voice" | "quiz" | "learning">(() => getInitialView(searchParams.get("view")));
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-[#0a0f1e]">

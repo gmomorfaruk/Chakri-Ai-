@@ -3,16 +3,80 @@
 import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { useI18n } from "@/components/providers/I18nProvider";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import * as THREE from "three";
+
+declare global {
+  interface Window {
+    THREE?: typeof THREE;
+  }
+}
 
 export default function SignInPage() {
   const supabase = useSupabase();
   const { t } = useI18n();
   const router = useRouter();
+  const vantaRef = useRef<HTMLDivElement | null>(null);
+  const haloEffectRef = useRef<{ destroy?: () => void } | null>(null);
+  const flyingLabels = [
+    { position: "left-[3%] top-[8%]", motion: "flying-brand-text", duration: "5.4s" },
+    { position: "left-[6%] top-[28%]", motion: "flying-brand-text-left", duration: "6.2s" },
+    { position: "left-[4%] top-[72%]", motion: "flying-brand-text-rise", duration: "5.8s" },
+    { position: "left-[10%] top-[88%]", motion: "flying-brand-text-swoop", duration: "6.8s" },
+    { position: "right-[3%] top-[10%]", motion: "flying-brand-text-left", duration: "5.6s" },
+    { position: "right-[7%] top-[42%]", motion: "flying-brand-text-swoop", duration: "6.4s" },
+    { position: "right-[4%] top-[78%]", motion: "flying-brand-text-rise", duration: "5.9s" },
+  ];
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function initVanta() {
+      if (!vantaRef.current || haloEffectRef.current) {
+        return;
+      }
+
+      window.THREE = THREE;
+      const { default: BIRDS } = await import("vanta/dist/vanta.birds.min");
+
+      if (!mounted || !vantaRef.current || haloEffectRef.current) {
+        return;
+      }
+
+      haloEffectRef.current = BIRDS({
+        el: vantaRef.current,
+        mouseControls: true,
+        touchControls: true,
+        gyroControls: false,
+        minHeight: 200,
+        minWidth: 200,
+        backgroundColor: 0x020617,
+        color1: 0x60a5fa,
+        color2: 0xa855f7,
+        birdSize: 1.1,
+        wingSpan: 18,
+        speedLimit: 3,
+        separation: 32,
+        alignment: 28,
+        cohesion: 30,
+        quantity: 6,
+        scale: 1,
+        scaleMobile: 1,
+      });
+    }
+
+    initVanta();
+
+    return () => {
+      mounted = false;
+      haloEffectRef.current?.destroy?.();
+      haloEffectRef.current = null;
+    };
+  }, []);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -32,115 +96,113 @@ export default function SignInPage() {
       return;
     }
 
-    router.push("/dashboard/profile");
+    router.push("/dashboard");
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-background overflow-hidden relative">
-      {/* Animated background gradients */}
-      <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-primary/20 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none animate-float" />
-      <div className="absolute bottom-0 left-0 w-96 h-96 bg-gradient-to-tr from-accent/20 to-transparent rounded-full blur-3xl translate-y-1/2 -translate-x-1/2 pointer-events-none animate-float" style={{ animationDelay: "1s" }} />
+    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background">
+      <div className="pointer-events-none fixed inset-0 overflow-hidden">
+        <div ref={vantaRef} className="absolute inset-0" />
+        <div className="absolute inset-0 bg-slate-950/35" />
+      </div>
 
-      <div className="relative z-10 w-full max-w-md px-4">
-        {/* Header */}
-        <div className="text-center mb-12">
-          <div className="inline-flex items-center justify-center mb-6">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary via-blue-500 to-accent flex items-center justify-center shadow-lg shadow-primary/30">
-              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
+      <div className="pointer-events-none absolute inset-0 z-10 hidden lg:block">
+        {flyingLabels.map((label, index) => (
+          <div
+            key={`${label.position}-${label.motion}`}
+            className={`absolute ${label.position}`}
+            style={{
+              animationDelay: `${index * 0.7}s`,
+            }}
+          >
+            <div
+              className={`${label.motion} rounded-full border border-cyan-300/25 bg-slate-950/45 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.35em] text-cyan-200/80 shadow-[0_0_25px_rgba(34,211,238,0.15)] backdrop-blur-md`}
+              style={{
+                animationDelay: `${index * 0.7}s`,
+                animationDuration: label.duration,
+              }}
+            >
+              Chakri AI
             </div>
           </div>
-          <h1 className="text-4xl font-bold mb-3">
-            <span className="bg-gradient-to-r from-primary via-blue-500 to-accent bg-clip-text text-transparent">Chakri AI</span>
-          </h1>
-          <p className="text-muted-foreground text-base font-medium">Transform Your Career With AI Guidance</p>
-        </div>
+        ))}
+      </div>
 
-        {/* Form Card */}
-        <div className="group fade-in-scale">
-          <div className="rounded-3xl border border-primary/10 bg-gradient-to-br from-card to-card/50 p-10 shadow-2xl backdrop-blur-2xl">
-            <h2 className="text-3xl font-bold text-foreground mb-2">{t("signIn")}</h2>
-            <p className="text-muted-foreground text-sm mb-8">Welcome back! Sign in to your account</p>
+      <div className="relative z-20 w-full max-w-md p-1">
+        <div className="animated-rgb-border rounded-[32px] p-px shadow-[0_30px_80px_rgba(2,6,23,0.55)]">
+          <div className="relative z-10 overflow-hidden rounded-[32px] border border-white/10 bg-slate-900/40 p-8 shadow-2xl backdrop-blur-2xl">
+            <div className="pointer-events-none absolute inset-x-10 top-0 z-10 h-px bg-gradient-to-r from-transparent via-cyan-300/80 to-transparent blur-sm" />
 
-            <form onSubmit={onSubmit} className="space-y-6">
-              {/* Email input */}
-              <div>
-                <label className="block text-sm font-semibold text-foreground mb-3">Email Address</label>
+            <div className="relative z-10 mb-8 text-center">
+              <h1 className="text-3xl font-black uppercase tracking-tight text-white">{t("signIn")}</h1>
+              <p className="mt-2 text-sm font-light text-slate-400">
+                Continue your journey with <span className="font-medium text-blue-400">Chakri AI</span>
+              </p>
+            </div>
+
+            <form onSubmit={onSubmit} className="relative z-10 space-y-6">
+              <div className="space-y-2">
+                <label className="ml-1 text-xs font-bold uppercase tracking-widest text-slate-500">
+                  Email Address
+                </label>
                 <input
                   type="email"
                   required
-                  placeholder="you@example.com"
-                  className="w-full rounded-xl border border-primary/20 bg-primary/5 px-5 py-3.5 text-sm font-medium placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/30 transition-all duration-300 hover:border-primary/40"
+                  placeholder="name@example.com"
+                  className="w-full rounded-2xl border border-white/5 bg-white/5 px-5 py-4 text-white placeholder:text-slate-600 transition-all focus:border-blue-500/50 focus:bg-white/10 focus:outline-none"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                 />
               </div>
 
-              {/* Password input */}
-              <div>
-                <label className="block text-sm font-semibold text-foreground mb-3">Password</label>
+              <div className="space-y-2">
+                <div className="ml-1 flex items-center justify-between">
+                  <label className="text-xs font-bold uppercase tracking-widest text-slate-500">
+                    Password
+                  </label>
+                  <a href="#" className="text-[10px] uppercase tracking-tighter text-blue-500 hover:underline">
+                    Forgot?
+                  </a>
+                </div>
                 <input
                   type="password"
                   required
                   placeholder="••••••••"
-                  className="w-full rounded-xl border border-primary/20 bg-primary/5 px-5 py-3.5 text-sm font-medium placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/30 transition-all duration-300 hover:border-primary/40"
+                  className="w-full rounded-2xl border border-white/5 bg-white/5 px-5 py-4 text-white placeholder:text-slate-600 transition-all focus:border-purple-500/50 focus:bg-white/10 focus:outline-none"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                 />
               </div>
 
-              {/* Error message */}
               {error ? (
-                <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive font-medium">
-                  <div className="flex gap-2">
-                    <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                    </svg>
-                    {error}
-                  </div>
+                <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                  {error}
                 </div>
               ) : null}
 
-              {/* Submit button */}
               <button
+                type="submit"
                 disabled={loading}
-                className="group relative w-full px-6 py-4 rounded-xl font-bold text-base overflow-hidden transition-all duration-300 disabled:opacity-60 mt-8 text-white"
+                className="group relative w-full overflow-hidden rounded-2xl bg-white px-5 py-4 text-sm font-bold text-black transition-all hover:scale-[1.02] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
               >
-                <div className="absolute inset-0 bg-gradient-to-r from-primary to-accent group-hover:shadow-lg group-hover:shadow-primary/30 transition-all duration-300" />
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
-                <span className="relative text-primary-foreground block">
-                  {loading ? t("loading") : t("signIn")}
-                </span>
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-purple-600 opacity-0 transition-opacity group-hover:opacity-10" />
+                <span className="relative">{loading ? t("loading") : t("signIn")}</span>
               </button>
             </form>
 
-            {/* Divider */}
-            <div className="relative mt-9 mb-7">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-primary/10" />
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-3 bg-gradient-to-br from-card to-card/50 text-muted-foreground font-medium">
-                  New user?
-                </span>
-              </div>
+            <div className="relative z-10 mt-8 text-center">
+              <p className="text-sm text-slate-500">
+                New to the platform?
+                <a href="/sign-up" className="ml-2 font-bold text-white transition-colors hover:text-blue-400">
+                  Create Account
+                </a>
+              </p>
             </div>
 
-            {/* Sign up link */}
-            <a
-              href="/sign-up"
-              className="block w-full text-center px-6 py-4 rounded-xl border-2 border-primary/30 bg-gradient-to-r from-primary/5 to-accent/5 hover:from-primary/10 hover:to-accent/10 font-semibold text-base text-primary hover:text-accent transition-all duration-300 hover:border-primary/60"
-            >
-              Create new account
-            </a>
+            <div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 bg-blue-500/10 blur-3xl" />
+            <div className="pointer-events-none absolute -bottom-10 -left-10 h-32 w-32 bg-purple-500/10 blur-3xl" />
           </div>
         </div>
-
-        {/* Footer text */}
-        <p className="text-center text-xs text-muted-foreground mt-8 font-medium">
-          🔒 Secure sign-in with enterprise-grade encryption
-        </p>
       </div>
     </main>
   );

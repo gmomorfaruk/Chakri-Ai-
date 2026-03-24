@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useI18n } from "@/components/providers/I18nProvider";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
+import { useSearchParams } from "next/navigation";
 import {
   createJobApplication,
   createJob,
@@ -20,16 +21,25 @@ import {
 import { createNotification, logActivity } from "@/lib/notificationsService";
 import { JobMatchingPanel } from "@/components/jobs/JobMatchingPanel";
 import { JobMatchesDisplay } from "@/components/jobs/JobMatchesDisplay";
-import { Job, JobApplication, JobApplicationStatus, JobPost } from "@/types/jobs";
+import { Job, JobApplication, JobApplicationStatus } from "@/types/jobs";
+
+function getInitialTab(tab: string | null): "hub" | "tracker" | "matching" | "matches" {
+  if (tab === "tracker" || tab === "matching" || tab === "matches") {
+    return tab;
+  }
+
+  return "hub";
+}
 
 export function JobsModule() {
   const { t } = useI18n();
   const supabase = useSupabase();
+  const searchParams = useSearchParams();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"hub" | "tracker" | "matching" | "matches">("hub");
-  const [matchRefreshTrigger, setMatchRefreshTrigger] = useState(0);
+  const [activeTab, setActiveTab] = useState<"hub" | "tracker" | "matching" | "matches">(() => getInitialTab(searchParams.get("tab")));
+  const matchRefreshTrigger = 0;
 
   const [userId, setUserId] = useState<string | null>(null);
   const [role, setRole] = useState<"user" | "admin">("user");
@@ -38,6 +48,7 @@ export function JobsModule() {
   const [approvedPosts, setApprovedPosts] = useState<Job[]>([]);
   const [pendingPosts, setPendingPosts] = useState<Job[]>([]);
   const [applications, setApplications] = useState<JobApplication[]>([]);
+  const [showPostForm, setShowPostForm] = useState(false);
 
   const [postForm, setPostForm] = useState({
     title: "",
@@ -159,6 +170,7 @@ export function JobsModule() {
       experience_max: "",
       source_url: "",
     });
+    setShowPostForm(false);
     await reload(userId, role === "admin");
   }
 
@@ -332,19 +344,115 @@ export function JobsModule() {
 
       {activeTab === "hub" ? (
         <div className="space-y-6">
-          <section className="rounded-2xl border border-border bg-card p-5">
-            <h2 className="text-lg font-semibold">{t("postJob")}</h2>
-            <form className="mt-4 grid gap-2 md:grid-cols-2" onSubmit={onCreatePost}>
-              <input className="rounded-lg border border-border bg-background px-3 py-2" placeholder={t("jobTitle")} value={postForm.title} onChange={(e) => setPostForm((p) => ({ ...p, title: e.target.value }))} />
-              <input className="rounded-lg border border-border bg-background px-3 py-2" placeholder={t("company")} value={postForm.company} onChange={(e) => setPostForm((p) => ({ ...p, company: e.target.value }))} />
-              <input className="rounded-lg border border-border bg-background px-3 py-2" placeholder={t("location")} value={postForm.location} onChange={(e) => setPostForm((p) => ({ ...p, location: e.target.value }))} />
-                <input className="rounded-lg border border-border bg-background px-3 py-2" placeholder={t("requiredSkills")} value={postForm.required_skills} onChange={(e) => setPostForm((p) => ({ ...p, required_skills: e.target.value }))} />
-                <input className="rounded-lg border border-border bg-background px-3 py-2" placeholder={t("experienceMin")} value={postForm.experience_min} onChange={(e) => setPostForm((p) => ({ ...p, experience_min: e.target.value }))} />
-                <input className="rounded-lg border border-border bg-background px-3 py-2" placeholder={t("experienceMax")} value={postForm.experience_max} onChange={(e) => setPostForm((p) => ({ ...p, experience_max: e.target.value }))} />
-                <input className="rounded-lg border border-border bg-background px-3 py-2" placeholder={t("applyUrl")} value={postForm.source_url} onChange={(e) => setPostForm((p) => ({ ...p, source_url: e.target.value }))} />
-              <textarea className="md:col-span-2 rounded-lg border border-border bg-background px-3 py-2" rows={4} placeholder={t("jobDescription")} value={postForm.description} onChange={(e) => setPostForm((p) => ({ ...p, description: e.target.value }))} />
-              <button className="md:col-span-2 rounded-lg bg-primary px-4 py-2 text-primary-foreground">{t("submitForApproval")}</button>
-            </form>
+          <section className="rounded-[28px] border border-border/50 bg-gradient-to-br from-card via-card/95 to-card/80 p-6 shadow-[0_20px_60px_rgba(2,6,23,0.35)] backdrop-blur-sm">
+            <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
+              <div className="max-w-2xl">
+                <div className="inline-flex rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-primary">
+                  Employer Desk
+                </div>
+                <h2 className="mt-4 text-2xl font-bold tracking-tight text-foreground">{t("postJob")}</h2>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  Publish a polished role listing for review. Add the essentials first, then let the platform handle approval before it goes live.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowPostForm((current) => !current)}
+                className="inline-flex items-center justify-center rounded-2xl bg-gradient-to-r from-primary to-accent px-5 py-3 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:scale-[1.01] hover:shadow-primary/30"
+              >
+                {showPostForm ? "Close form" : t("postJob")}
+              </button>
+            </div>
+
+            {showPostForm ? (
+              <form className="mt-8 grid gap-4 md:grid-cols-2" onSubmit={onCreatePost}>
+                <input
+                  className="rounded-2xl border border-border/60 bg-background/80 px-4 py-3 text-sm outline-none transition-all focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
+                  placeholder={t("jobTitle")}
+                  value={postForm.title}
+                  onChange={(e) => setPostForm((p) => ({ ...p, title: e.target.value }))}
+                />
+                <input
+                  className="rounded-2xl border border-border/60 bg-background/80 px-4 py-3 text-sm outline-none transition-all focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
+                  placeholder={t("company")}
+                  value={postForm.company}
+                  onChange={(e) => setPostForm((p) => ({ ...p, company: e.target.value }))}
+                />
+                <input
+                  className="rounded-2xl border border-border/60 bg-background/80 px-4 py-3 text-sm outline-none transition-all focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
+                  placeholder={t("location")}
+                  value={postForm.location}
+                  onChange={(e) => setPostForm((p) => ({ ...p, location: e.target.value }))}
+                />
+                <input
+                  className="rounded-2xl border border-border/60 bg-background/80 px-4 py-3 text-sm outline-none transition-all focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
+                  placeholder={t("requiredSkills")}
+                  value={postForm.required_skills}
+                  onChange={(e) => setPostForm((p) => ({ ...p, required_skills: e.target.value }))}
+                />
+                <input
+                  className="rounded-2xl border border-border/60 bg-background/80 px-4 py-3 text-sm outline-none transition-all focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
+                  placeholder={t("experienceMin")}
+                  value={postForm.experience_min}
+                  onChange={(e) => setPostForm((p) => ({ ...p, experience_min: e.target.value }))}
+                />
+                <input
+                  className="rounded-2xl border border-border/60 bg-background/80 px-4 py-3 text-sm outline-none transition-all focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
+                  placeholder={t("experienceMax")}
+                  value={postForm.experience_max}
+                  onChange={(e) => setPostForm((p) => ({ ...p, experience_max: e.target.value }))}
+                />
+                <input
+                  className="md:col-span-2 rounded-2xl border border-border/60 bg-background/80 px-4 py-3 text-sm outline-none transition-all focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
+                  placeholder={t("applyUrl")}
+                  value={postForm.source_url}
+                  onChange={(e) => setPostForm((p) => ({ ...p, source_url: e.target.value }))}
+                />
+                <textarea
+                  className="md:col-span-2 min-h-[180px] rounded-2xl border border-border/60 bg-background/80 px-4 py-3 text-sm outline-none transition-all focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
+                  rows={6}
+                  placeholder={t("jobDescription")}
+                  value={postForm.description}
+                  onChange={(e) => setPostForm((p) => ({ ...p, description: e.target.value }))}
+                />
+                <div className="md:col-span-2 flex flex-col gap-3 border-t border-border/50 pt-4 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">
+                    Professional listings are reviewed before publication
+                  </p>
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setShowPostForm(false)}
+                      className="rounded-2xl border border-border/70 px-4 py-3 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+                    >
+                      Cancel
+                    </button>
+                    <button className="rounded-2xl bg-gradient-to-r from-primary to-accent px-5 py-3 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:scale-[1.01]">
+                      {t("submitForApproval")}
+                    </button>
+                  </div>
+                </div>
+              </form>
+            ) : (
+              <div className="mt-8 rounded-[24px] border border-dashed border-border/70 bg-background/30 p-6">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">Ready to publish a role?</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Open the form to add job details, skills, experience range, and application link.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowPostForm(true)}
+                    className="inline-flex items-center justify-center rounded-2xl border border-primary/30 bg-primary/10 px-5 py-3 text-sm font-semibold text-primary transition-all hover:bg-primary/15"
+                  >
+                    Open post form
+                  </button>
+                </div>
+              </div>
+            )}
           </section>
 
           <section className="rounded-2xl border border-border bg-card p-5">
