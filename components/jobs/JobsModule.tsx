@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { BarChart3, BriefcaseBusiness, Check, Circle, ClipboardCheck, Dot, Layers3, Sparkles } from "lucide-react";
 import { useI18n } from "@/components/providers/I18nProvider";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { useSearchParams } from "next/navigation";
@@ -37,6 +39,7 @@ export function JobsModule() {
   const searchParams = useSearchParams();
 
   const [loading, setLoading] = useState(true);
+  const [isMutating, setIsMutating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"hub" | "tracker" | "matching" | "matches">(() => getInitialTab(searchParams.get("tab")));
   const matchRefreshTrigger = 0;
@@ -49,6 +52,7 @@ export function JobsModule() {
   const [pendingPosts, setPendingPosts] = useState<Job[]>([]);
   const [applications, setApplications] = useState<JobApplication[]>([]);
   const [showPostForm, setShowPostForm] = useState(false);
+  const [showTrackerForm, setShowTrackerForm] = useState(false);
 
   const [postForm, setPostForm] = useState({
     title: "",
@@ -61,6 +65,43 @@ export function JobsModule() {
     source_url: "",
   });
   const [appForm, setAppForm] = useState({ role_title: "", company: "", status: "applied" as JobApplicationStatus, follow_up_date: "", notes: "" });
+
+  function getErrorMessage(errorValue: unknown, fallback: string) {
+    if (errorValue instanceof Error && errorValue.message) {
+      return errorValue.message;
+    }
+    if (typeof errorValue === "object" && errorValue !== null && "message" in errorValue) {
+      const message = (errorValue as { message?: string }).message;
+      if (typeof message === "string" && message.trim()) {
+        return message;
+      }
+    }
+
+    return fallback;
+  }
+
+  function isValidHttpUrl(value: string) {
+    try {
+      const url = new URL(value);
+      return url.protocol === "http:" || url.protocol === "https:";
+    } catch {
+      return false;
+    }
+  }
+
+  async function runMutation(action: () => Promise<void>, fallbackError: string) {
+    if (isMutating) return;
+    setIsMutating(true);
+    setError(null);
+
+    try {
+      await action();
+    } catch (mutationError) {
+      setError(getErrorMessage(mutationError, fallbackError));
+    } finally {
+      setIsMutating(false);
+    }
+  }
 
   useEffect(() => {
     void init();
@@ -77,18 +118,22 @@ export function JobsModule() {
     setLoading(true);
     setError(null);
 
-    const { data: authData } = await supabase.auth.getUser();
-    if (!authData.user) {
-      setLoading(false);
-      setError(t("profileAuthRequired"));
-      return;
-    }
+    try {
+      const { data: authData, error: authError } = await supabase.auth.getUser();
+      if (authError || !authData.user) {
+        setError(t("profileAuthRequired"));
+        return;
+      }
 
-    setUserId(authData.user.id);
-    const currentRole = await getCurrentUserProfileRole(supabase, authData.user.id);
-    setRole(currentRole === "admin" ? "admin" : "user");
-    await reload(authData.user.id, currentRole === "admin");
-    setLoading(false);
+      setUserId(authData.user.id);
+      const currentRole = await getCurrentUserProfileRole(supabase, authData.user.id);
+      setRole(currentRole === "admin" ? "admin" : "user");
+      await reload(authData.user.id, currentRole === "admin");
+    } catch (initError) {
+      setError(getErrorMessage(initError, "Failed to load jobs module."));
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function reload(uid: string, isAdmin: boolean) {
@@ -100,6 +145,11 @@ export function JobsModule() {
       getMyJobApplications(supabase, uid),
       isAdmin ? getPendingJobsForAdmin(supabase) : Promise.resolve({ data: [] as Job[], error: null }),
     ]);
+
+    const firstError = myPostsRes.error || approvedPostsRes.error || appsRes.error || pendingRes.error;
+    if (firstError) {
+      throw firstError;
+    }
 
     setMyPosts(myPostsRes.data ?? []);
     setApprovedPosts(approvedPostsRes.data ?? []);
@@ -115,97 +165,123 @@ export function JobsModule() {
       return;
     }
 
+    if (postForm.source_url.trim() && !isValidHttpUrl(postForm.source_url.trim())) {
+      setError("Application URL must be a valid http(s) URL.");
+      return;
+    }
+
     const requiredSkills = postForm.required_skills
       .split(",")
       .map((s) => s.trim().toLowerCase())
       .filter(Boolean);
 
-    const expMin = postForm.experience_min ? Number(postForm.experience_min) : null;
-    const expMax = postForm.experience_max ? Number(postForm.experience_max) : null;
+    const expMinRaw = postForm.experience_min.trim();
+    const expMaxRaw = postForm.experience_max.trim();
+    const expMin = expMinRaw ? Number(expMinRaw) : null;
+    const expMax = expMaxRaw ? Number(expMaxRaw) : null;
 
-    const { error: createError } = await createJob(supabase, {
-      title: postForm.title.trim(),
-      company: postForm.company.trim(),
-      location: postForm.location.trim() || null,
-      description: postForm.description.trim(),
-      required_skills: requiredSkills,
-      experience_min: Number.isFinite(expMin) ? expMin : null,
-      experience_max: Number.isFinite(expMax) ? expMax : null,
-      source: "manual",
-      source_url: postForm.source_url.trim() || null,
-      created_by: userId,
-      status: "pending",
-    });
-
-    if (createError) {
-      setError(createError.message);
+    if (expMinRaw && (!Number.isFinite(expMin) || expMin! < 0)) {
+      setError("Minimum experience must be a valid non-negative number.");
+      return;
+    }
+    if (expMaxRaw && (!Number.isFinite(expMax) || expMax! < 0)) {
+      setError("Maximum experience must be a valid non-negative number.");
+      return;
+    }
+    if (expMin !== null && expMax !== null && expMin > expMax) {
+      setError("Minimum experience cannot be greater than maximum experience.");
       return;
     }
 
-    await Promise.all([
-      createNotification(supabase, {
-        user_id: userId,
-        type: "job",
-        title: "Job post submitted",
-        message: "Your job post is now pending admin approval.",
-        link: "/dashboard/jobs",
-      }),
-      logActivity(supabase, {
-        user_id: userId,
-        actor_role: role,
-        action: "job_post_submitted",
-        resource_type: "job_post",
-        severity: "info",
-        source: "jobs_module",
-      }),
-    ]);
+    await runMutation(async () => {
+      const { error: createError } = await createJob(supabase, {
+        title: postForm.title.trim(),
+        company: postForm.company.trim(),
+        location: postForm.location.trim() || null,
+        description: postForm.description.trim(),
+        required_skills: requiredSkills,
+        experience_min: Number.isFinite(expMin) ? expMin : null,
+        experience_max: Number.isFinite(expMax) ? expMax : null,
+        source: "manual",
+        source_url: postForm.source_url.trim() || null,
+        created_by: userId,
+        status: "pending",
+      });
 
-    setPostForm({
-      title: "",
-      company: "",
-      location: "",
-      description: "",
-      required_skills: "",
-      experience_min: "",
-      experience_max: "",
-      source_url: "",
-    });
-    setShowPostForm(false);
-    await reload(userId, role === "admin");
+      if (createError) {
+        throw createError;
+      }
+
+      await Promise.allSettled([
+        createNotification(supabase, {
+          user_id: userId,
+          type: "job",
+          title: "Job post submitted",
+          message: "Your job post is now pending admin approval.",
+          link: "/dashboard/jobs",
+        }),
+        logActivity(supabase, {
+          user_id: userId,
+          actor_role: role,
+          action: "job_post_submitted",
+          resource_type: "job_post",
+          severity: "info",
+          source: "jobs_module",
+        }),
+      ]);
+
+      setPostForm({
+        title: "",
+        company: "",
+        location: "",
+        description: "",
+        required_skills: "",
+        experience_min: "",
+        experience_max: "",
+        source_url: "",
+      });
+      setShowPostForm(false);
+      await reload(userId, role === "admin");
+    }, "Failed to create job post.");
   }
 
   async function onModerate(id: string, status: "approved" | "rejected") {
     if (!supabase || !userId || role !== "admin") return;
-
-    const target = pendingPosts.find((p) => p.id === id);
-    const { error: modError } = await moderateJob(supabase, id, status);
-    if (modError) {
-      setError(modError.message);
+    if (typeof window !== "undefined" && !window.confirm(`Are you sure you want to ${status} this job post?`)) {
       return;
     }
 
-    await logActivity(supabase, {
-      user_id: userId,
-      actor_role: "admin",
-      action: `job_${status}`,
-      resource_type: "job_post",
-      resource_id: id,
-      severity: status === "rejected" ? "warning" : "info",
-      source: "jobs_module",
-      metadata: { status },
-    });
+    await runMutation(async () => {
+      const target = pendingPosts.find((p) => p.id === id);
+      const { error: modError } = await moderateJob(supabase, id, status);
+      if (modError) {
+        throw modError;
+      }
 
-    if (target?.created_by) {
-      await createNotification(supabase, {
-        user_id: target.created_by,
-        type: "job",
-        title: `Job post ${status}`,
-        message: `Your job post \"${target.title}\" was ${status}.`,
-        link: "/dashboard/jobs",
-      });
-    }
+      await Promise.allSettled([
+        logActivity(supabase, {
+          user_id: userId,
+          actor_role: "admin",
+          action: `job_${status}`,
+          resource_type: "job_post",
+          resource_id: id,
+          severity: status === "rejected" ? "warning" : "info",
+          source: "jobs_module",
+          metadata: { status },
+        }),
+        target?.created_by
+          ? createNotification(supabase, {
+              user_id: target.created_by,
+              type: "job",
+              title: `Job post ${status}`,
+              message: `Your job post \"${target.title}\" was ${status}.`,
+              link: "/dashboard/jobs",
+            })
+          : Promise.resolve(),
+      ]);
 
-    await reload(userId, true);
+      await reload(userId, true);
+    }, `Failed to ${status} job post.`);
   }
 
   async function onCreateApplication(e: React.FormEvent<HTMLFormElement>) {
@@ -216,78 +292,97 @@ export function JobsModule() {
       return;
     }
 
-    const { error: appError } = await createJobApplication(supabase, {
-      user_id: userId,
-      job_post_id: null,
-      role_title: appForm.role_title.trim(),
-      company: appForm.company.trim(),
-      status: appForm.status,
-      applied_at: new Date().toISOString().slice(0, 10),
-      follow_up_date: appForm.follow_up_date || null,
-      notes: appForm.notes.trim() || null,
-      ai_followup_draft: null,
-    });
-
-    if (appError) {
-      setError(appError.message);
+    if (appForm.follow_up_date && Number.isNaN(Date.parse(appForm.follow_up_date))) {
+      setError("Follow-up date is invalid.");
       return;
     }
 
-    await logActivity(supabase, {
-      user_id: userId,
-      actor_role: role,
-      action: "job_application_added",
-      resource_type: "job_application",
-      severity: "info",
-      source: "jobs_module",
-      metadata: { role_title: appForm.role_title.trim(), company: appForm.company.trim() },
-    });
+    await runMutation(async () => {
+      const { error: appError } = await createJobApplication(supabase, {
+        user_id: userId,
+        job_post_id: null,
+        role_title: appForm.role_title.trim(),
+        company: appForm.company.trim(),
+        status: appForm.status,
+        applied_at: new Date().toISOString().slice(0, 10),
+        follow_up_date: appForm.follow_up_date || null,
+        notes: appForm.notes.trim() || null,
+        ai_followup_draft: null,
+      });
 
-    setAppForm({ role_title: "", company: "", status: "applied", follow_up_date: "", notes: "" });
-    await reload(userId, role === "admin");
+      if (appError) {
+        throw appError;
+      }
+
+      await Promise.allSettled([
+        logActivity(supabase, {
+          user_id: userId,
+          actor_role: role,
+          action: "job_application_added",
+          resource_type: "job_application",
+          severity: "info",
+          source: "jobs_module",
+          metadata: { role_title: appForm.role_title.trim(), company: appForm.company.trim() },
+        }),
+      ]);
+
+      setAppForm({ role_title: "", company: "", status: "applied", follow_up_date: "", notes: "" });
+      await reload(userId, role === "admin");
+    }, "Failed to create job application.");
   }
 
   async function onStatusChange(id: string, status: JobApplicationStatus) {
     if (!supabase || !userId) return;
-    const { error: statusError } = await updateJobApplicationStatus(supabase, id, status);
-    if (statusError) {
-      setError(statusError.message);
-      return;
-    }
 
-    await logActivity(supabase, {
-      user_id: userId,
-      actor_role: role,
-      action: "job_application_status_changed",
-      resource_type: "job_application",
-      resource_id: id,
-      severity: "info",
-      source: "jobs_module",
-      metadata: { status },
-    });
+    await runMutation(async () => {
+      const { error: statusError } = await updateJobApplicationStatus(supabase, id, status);
+      if (statusError) {
+        throw statusError;
+      }
 
-    await reload(userId, role === "admin");
+      await Promise.allSettled([
+        logActivity(supabase, {
+          user_id: userId,
+          actor_role: role,
+          action: "job_application_status_changed",
+          resource_type: "job_application",
+          resource_id: id,
+          severity: "info",
+          source: "jobs_module",
+          metadata: { status },
+        }),
+      ]);
+
+      await reload(userId, role === "admin");
+    }, "Failed to update application status.");
   }
 
   async function onGenerateDraft(item: JobApplication) {
     if (!supabase || !userId) return;
-    const draft = generateFollowUpDraft(item.role_title, item.company);
-    const { error: draftError } = await updateJobApplicationFollowUpDraft(supabase, item.id, draft);
-    if (draftError) {
-      setError(draftError.message);
-      return;
-    }
-    await reload(userId, role === "admin");
+
+    await runMutation(async () => {
+      const draft = generateFollowUpDraft(item.role_title, item.company);
+      const { error: draftError } = await updateJobApplicationFollowUpDraft(supabase, item.id, draft);
+      if (draftError) {
+        throw draftError;
+      }
+      await reload(userId, role === "admin");
+    }, "Failed to generate follow-up draft.");
   }
 
   async function onDeleteApplication(id: string) {
     if (!supabase || !userId) return;
-    const { error: delError } = await deleteJobApplication(supabase, id);
-    if (delError) {
-      setError(delError.message);
+    if (typeof window !== "undefined" && !window.confirm("Delete this application?")) {
       return;
     }
-    await reload(userId, role === "admin");
+
+    await runMutation(async () => {
+      const { error: delError } = await deleteJobApplication(supabase, id);
+      if (delError) {
+        throw delError;
+      }
+      await reload(userId, role === "admin");
+    }, "Failed to delete application.");
   }
 
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
@@ -301,12 +396,13 @@ export function JobsModule() {
   }
 
   return (
-    <section className="space-y-6">
-      <header className="rounded-2xl border border-border/30 bg-gradient-to-br from-card/80 to-card/40 p-8 backdrop-blur-sm">
-        <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+    <section className="space-y-5 md:space-y-6">
+      <header className="relative overflow-hidden rounded-3xl border border-border/40 bg-gradient-to-br from-card via-card/95 to-card/80 p-5 shadow-[0_18px_50px_rgba(2,6,23,0.3)] backdrop-blur-sm sm:p-6 md:p-8">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(56,189,248,0.12),transparent_45%)]" />
+        <h1 className="relative text-2xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent sm:text-3xl">
           {t("jobs")}
         </h1>
-        <p className="mt-2 text-sm text-muted-foreground">{t("jobsModuleHint")}</p>
+        <p className="relative mt-2 max-w-2xl text-sm text-muted-foreground">{t("jobsModuleHint")}</p>
       </header>
 
       {error ? (
@@ -315,7 +411,7 @@ export function JobsModule() {
         </div>
       ) : null}
 
-      <div className="flex gap-2">
+      <div className="grid gap-2 rounded-2xl border border-border/50 bg-card/60 p-2 sm:grid-cols-2 lg:grid-cols-4">
         {[
           { id: "hub", label: t("jobHub") },
           { id: "tracker", label: t("jobTracker") },
@@ -325,10 +421,10 @@ export function JobsModule() {
           <button
             key={btn.id}
             onClick={() => setActiveTab(btn.id as typeof activeTab)}
-            className={`group relative px-6 py-2.5 rounded-lg font-semibold text-sm transition-all duration-300 overflow-hidden ${
+            className={`group relative overflow-hidden rounded-xl px-3 py-2.5 text-xs font-semibold transition-all duration-300 sm:px-4 sm:py-3 sm:text-sm ${
               activeTab === btn.id
-                ? "text-primary-foreground"
-                : "text-muted-foreground hover:text-foreground"
+                ? "text-primary-foreground shadow-lg shadow-primary/20"
+                : "border border-border/60 bg-background/60 text-muted-foreground hover:border-primary/30 hover:text-foreground"
             }`}
           >
             {activeTab === btn.id && (
@@ -337,20 +433,65 @@ export function JobsModule() {
             {activeTab === btn.id && (
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
             )}
-            <span className="relative">{btn.label}</span>
+            <span className="relative tracking-wide">{btn.label}</span>
           </button>
         ))}
       </div>
 
       {activeTab === "hub" ? (
-        <div className="space-y-6">
-          <section className="rounded-[28px] border border-border/50 bg-gradient-to-br from-card via-card/95 to-card/80 p-6 shadow-[0_20px_60px_rgba(2,6,23,0.35)] backdrop-blur-sm">
+        <div className="space-y-6 md:space-y-7">
+          <section className="relative overflow-hidden rounded-[30px] border border-border/60 bg-gradient-to-br from-card via-card/95 to-background/85 p-4 shadow-[0_22px_70px_rgba(2,6,23,0.35)] sm:p-5 md:p-6">
+            <div className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-cyan-500/15 blur-3xl" />
+            <div className="pointer-events-none absolute -left-14 bottom-0 h-44 w-44 rounded-full bg-blue-500/10 blur-3xl" />
+
+            <div className="relative flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+              <div className="max-w-2xl">
+                <div className="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-primary">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Hiring Command Center
+                </div>
+                <h2 className="mt-3 text-2xl font-bold tracking-tight text-foreground sm:text-3xl" style={{ fontFamily: "Space Grotesk, DM Sans, system-ui" }}>
+                  Build, launch, and track high-signal opportunities
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  Your Job Hub is now a live operations deck: publish quality roles, monitor approvals, and keep your hiring pipeline moving fast.
+                </p>
+              </div>
+
+              <div className="grid w-full gap-2 sm:grid-cols-2 lg:w-auto lg:min-w-[360px]">
+                {[
+                  { label: "My posts", value: myPosts.length, icon: <BriefcaseBusiness className="h-4 w-4" />, tone: "text-cyan-300" },
+                  { label: "Approved", value: approvedPosts.length, icon: <ClipboardCheck className="h-4 w-4" />, tone: "text-emerald-300" },
+                  { label: "Applications", value: applications.length, icon: <BarChart3 className="h-4 w-4" />, tone: "text-amber-300" },
+                  {
+                    label: role === "admin" ? "Pending" : "Awaiting review",
+                    value: role === "admin" ? pendingPosts.length : myPosts.filter((post) => post.status === "pending").length,
+                    icon: <Layers3 className="h-4 w-4" />,
+                    tone: "text-violet-300",
+                  },
+                ].map((item) => (
+                  <div key={item.label} className="rounded-2xl border border-border/60 bg-background/65 px-3.5 py-3">
+                    <div className="flex items-center justify-between text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                      <span>{item.label}</span>
+                      <span className="text-primary">{item.icon}</span>
+                    </div>
+                    <p className={`mt-1 text-2xl font-bold ${item.tone}`} style={{ fontFamily: "Space Grotesk, DM Sans, system-ui" }}>
+                      {item.value}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-[28px] border border-border/50 bg-gradient-to-br from-card via-card/95 to-card/80 p-4 shadow-[0_20px_60px_rgba(2,6,23,0.35)] backdrop-blur-sm sm:p-5 md:p-6">
             <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
               <div className="max-w-2xl">
-                <div className="inline-flex rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-primary">
+                <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-primary">
+                  <Sparkles className="h-3.5 w-3.5" />
                   Employer Desk
                 </div>
-                <h2 className="mt-4 text-2xl font-bold tracking-tight text-foreground">{t("postJob")}</h2>
+                <h2 className="mt-4 text-xl font-bold tracking-tight text-foreground sm:text-2xl">{t("postJob")}</h2>
                 <p className="mt-2 text-sm leading-6 text-muted-foreground">
                   Publish a polished role listing for review. Add the essentials first, then let the platform handle approval before it goes live.
                 </p>
@@ -366,51 +507,51 @@ export function JobsModule() {
             </div>
 
             {showPostForm ? (
-              <form className="mt-8 grid gap-4 md:grid-cols-2" onSubmit={onCreatePost}>
+              <form className="mt-6 grid gap-3 sm:gap-4 md:mt-8 md:grid-cols-2" onSubmit={onCreatePost}>
                 <input
-                  className="rounded-2xl border border-border/60 bg-background/80 px-4 py-3 text-sm outline-none transition-all focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
+                  className="rounded-2xl border border-border/60 bg-background/80 px-4 py-2.5 text-sm outline-none transition-all focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
                   placeholder={t("jobTitle")}
                   value={postForm.title}
                   onChange={(e) => setPostForm((p) => ({ ...p, title: e.target.value }))}
                 />
                 <input
-                  className="rounded-2xl border border-border/60 bg-background/80 px-4 py-3 text-sm outline-none transition-all focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
+                  className="rounded-2xl border border-border/60 bg-background/80 px-4 py-2.5 text-sm outline-none transition-all focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
                   placeholder={t("company")}
                   value={postForm.company}
                   onChange={(e) => setPostForm((p) => ({ ...p, company: e.target.value }))}
                 />
                 <input
-                  className="rounded-2xl border border-border/60 bg-background/80 px-4 py-3 text-sm outline-none transition-all focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
+                  className="rounded-2xl border border-border/60 bg-background/80 px-4 py-2.5 text-sm outline-none transition-all focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
                   placeholder={t("location")}
                   value={postForm.location}
                   onChange={(e) => setPostForm((p) => ({ ...p, location: e.target.value }))}
                 />
                 <input
-                  className="rounded-2xl border border-border/60 bg-background/80 px-4 py-3 text-sm outline-none transition-all focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
+                  className="rounded-2xl border border-border/60 bg-background/80 px-4 py-2.5 text-sm outline-none transition-all focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
                   placeholder={t("requiredSkills")}
                   value={postForm.required_skills}
                   onChange={(e) => setPostForm((p) => ({ ...p, required_skills: e.target.value }))}
                 />
                 <input
-                  className="rounded-2xl border border-border/60 bg-background/80 px-4 py-3 text-sm outline-none transition-all focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
+                  className="rounded-2xl border border-border/60 bg-background/80 px-4 py-2.5 text-sm outline-none transition-all focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
                   placeholder={t("experienceMin")}
                   value={postForm.experience_min}
                   onChange={(e) => setPostForm((p) => ({ ...p, experience_min: e.target.value }))}
                 />
                 <input
-                  className="rounded-2xl border border-border/60 bg-background/80 px-4 py-3 text-sm outline-none transition-all focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
+                  className="rounded-2xl border border-border/60 bg-background/80 px-4 py-2.5 text-sm outline-none transition-all focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
                   placeholder={t("experienceMax")}
                   value={postForm.experience_max}
                   onChange={(e) => setPostForm((p) => ({ ...p, experience_max: e.target.value }))}
                 />
                 <input
-                  className="md:col-span-2 rounded-2xl border border-border/60 bg-background/80 px-4 py-3 text-sm outline-none transition-all focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
+                  className="md:col-span-2 rounded-2xl border border-border/60 bg-background/80 px-4 py-2.5 text-sm outline-none transition-all focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
                   placeholder={t("applyUrl")}
                   value={postForm.source_url}
                   onChange={(e) => setPostForm((p) => ({ ...p, source_url: e.target.value }))}
                 />
                 <textarea
-                  className="md:col-span-2 min-h-[180px] rounded-2xl border border-border/60 bg-background/80 px-4 py-3 text-sm outline-none transition-all focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
+                  className="md:col-span-2 min-h-[160px] rounded-2xl border border-border/60 bg-background/80 px-4 py-3 text-sm outline-none transition-all focus:border-primary/50 focus:ring-2 focus:ring-primary/20 sm:min-h-[180px]"
                   rows={6}
                   placeholder={t("jobDescription")}
                   value={postForm.description}
@@ -420,22 +561,22 @@ export function JobsModule() {
                   <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">
                     Professional listings are reviewed before publication
                   </p>
-                  <div className="flex gap-3">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:gap-3">
                     <button
                       type="button"
                       onClick={() => setShowPostForm(false)}
-                      className="rounded-2xl border border-border/70 px-4 py-3 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+                      className="rounded-2xl border border-border/70 px-4 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
                     >
                       Cancel
                     </button>
-                    <button className="rounded-2xl bg-gradient-to-r from-primary to-accent px-5 py-3 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:scale-[1.01]">
+                    <button className="rounded-2xl bg-gradient-to-r from-primary to-accent px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:scale-[1.01]">
                       {t("submitForApproval")}
                     </button>
                   </div>
                 </div>
               </form>
             ) : (
-              <div className="mt-8 rounded-[24px] border border-dashed border-border/70 bg-background/30 p-6">
+              <div className="mt-6 rounded-[24px] border border-dashed border-border/70 bg-background/30 p-4 sm:mt-8 sm:p-6">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <p className="text-sm font-semibold text-foreground">Ready to publish a role?</p>
@@ -455,48 +596,63 @@ export function JobsModule() {
             )}
           </section>
 
-          <section className="rounded-2xl border border-border bg-card p-5">
-            <h2 className="text-lg font-semibold">{t("myJobPosts")}</h2>
-            <div className="mt-3 space-y-2">
+          <section className="rounded-3xl border border-border/60 bg-card/95 p-4 shadow-[0_14px_32px_rgba(2,6,23,0.24)] sm:p-5">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <h2 className="text-lg font-semibold tracking-tight">{t("myJobPosts")}</h2>
+              <span className="rounded-full border border-border/70 bg-background/60 px-2.5 py-1 text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
+                {myPosts.length} total
+              </span>
+            </div>
+            <div className="mt-3 space-y-3">
               {myPosts.length === 0 ? <p className="text-sm text-muted-foreground">{t("emptyJobPosts")}</p> : myPosts.map((item) => (
-                <article key={item.id} className="rounded-lg border border-border p-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="font-medium">{item.title} · {item.company}</p>
-                    <span className={`rounded-full px-2 py-0.5 text-xs ${item.status === "approved" ? "bg-emerald-500/20 text-emerald-300" : item.status === "rejected" ? "bg-red-500/20 text-red-300" : "bg-amber-500/20 text-amber-300"}`}>{item.status}</span>
+                <article key={item.id} className="rounded-2xl border border-border/70 bg-background/60 p-3.5 transition hover:border-primary/25 sm:p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="font-semibold tracking-tight text-sm sm:text-base">{item.title} · {item.company}</p>
+                    <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] ${item.status === "approved" ? "bg-emerald-500/20 text-emerald-300" : item.status === "rejected" ? "bg-red-500/20 text-red-300" : "bg-amber-500/20 text-amber-300"}`}>{item.status}</span>
                   </div>
                   <p className="text-sm text-muted-foreground mt-1">{item.description}</p>
-                  {item.required_skills.length > 0 ? <p className="mt-1 text-xs text-muted-foreground">{item.required_skills.join(", ")}</p> : null}
+                  {item.required_skills.length > 0 ? <p className="mt-2 text-xs text-muted-foreground">Skills: {item.required_skills.join(", ")}</p> : null}
                 </article>
               ))}
             </div>
           </section>
 
-          <section className="rounded-2xl border border-border bg-card p-5">
-            <h2 className="text-lg font-semibold">{t("approvedJobs")}</h2>
-            <div className="mt-3 space-y-2">
+          <section className="rounded-3xl border border-border/60 bg-card/95 p-4 shadow-[0_14px_32px_rgba(2,6,23,0.24)] sm:p-5">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <h2 className="text-lg font-semibold tracking-tight">{t("approvedJobs")}</h2>
+              <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] uppercase tracking-[0.14em] text-emerald-300">
+                {approvedPosts.length} live
+              </span>
+            </div>
+            <div className="mt-3 space-y-3">
               {approvedPosts.length === 0 ? <p className="text-sm text-muted-foreground">{t("emptyApprovedJobs")}</p> : approvedPosts.map((item) => (
-                <article key={item.id} className="rounded-lg border border-border p-3">
-                  <p className="font-medium">{item.title} · {item.company}</p>
+                <article key={item.id} className="rounded-2xl border border-border/70 bg-background/60 p-3.5 transition hover:border-primary/25 sm:p-4">
+                  <p className="font-semibold tracking-tight text-sm sm:text-base">{item.title} · {item.company}</p>
                   {item.location ? <p className="text-sm text-muted-foreground">{item.location}</p> : null}
                   <p className="text-sm text-muted-foreground mt-1">{item.description}</p>
-                  {item.required_skills.length > 0 ? <p className="mt-1 text-xs text-muted-foreground">{item.required_skills.join(", ")}</p> : null}
-                  {item.source_url ? <a href={item.source_url} target="_blank" rel="noreferrer" className="text-sm text-primary underline mt-1 inline-block">{t("applyNow")}</a> : null}
+                  {item.required_skills.length > 0 ? <p className="mt-2 text-xs text-muted-foreground">Skills: {item.required_skills.join(", ")}</p> : null}
+                  {item.source_url ? <a href={item.source_url} target="_blank" rel="noreferrer" className="mt-2 inline-flex rounded-lg border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary transition hover:bg-primary/15">{t("applyNow")}</a> : null}
                 </article>
               ))}
             </div>
           </section>
 
           {role === "admin" ? (
-            <section className="rounded-2xl border border-border bg-card p-5">
-              <h2 className="text-lg font-semibold">{t("adminModeration")}</h2>
-              <div className="mt-3 space-y-2">
+            <section className="rounded-3xl border border-border/60 bg-card/95 p-4 shadow-[0_14px_32px_rgba(2,6,23,0.24)] sm:p-5">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <h2 className="text-lg font-semibold tracking-tight">{t("adminModeration")}</h2>
+                <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-[11px] uppercase tracking-[0.14em] text-amber-300">
+                  {pendingPosts.length} pending
+                </span>
+              </div>
+              <div className="mt-3 space-y-3">
                 {pendingPosts.length === 0 ? <p className="text-sm text-muted-foreground">{t("emptyPendingModeration")}</p> : pendingPosts.map((item) => (
-                  <article key={item.id} className="rounded-lg border border-border p-3">
-                    <p className="font-medium">{item.title} · {item.company}</p>
+                  <article key={item.id} className="rounded-2xl border border-border/70 bg-background/60 p-3.5 sm:p-4">
+                    <p className="font-semibold tracking-tight text-sm sm:text-base">{item.title} · {item.company}</p>
                     <p className="text-sm text-muted-foreground mt-1">{item.description}</p>
-                    <div className="mt-3 flex gap-2">
-                      <button onClick={() => onModerate(item.id, "approved")} className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm text-white">{t("approve")}</button>
-                      <button onClick={() => onModerate(item.id, "rejected")} className="rounded-lg bg-red-600 px-3 py-1.5 text-sm text-white">{t("reject")}</button>
+                    <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                      <button onClick={() => onModerate(item.id, "approved")} className="rounded-xl bg-emerald-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-emerald-500">{t("approve")}</button>
+                      <button onClick={() => onModerate(item.id, "rejected")} className="rounded-xl bg-red-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-red-500">{t("reject")}</button>
                     </div>
                   </article>
                 ))}
@@ -506,55 +662,227 @@ export function JobsModule() {
         </div>
       ) : activeTab === "tracker" ? (
         <div className="space-y-6">
-          <section className="rounded-2xl border border-border bg-card p-5">
-            <h2 className="text-lg font-semibold">{t("jobTracker")}</h2>
-            <form className="mt-4 grid gap-2 md:grid-cols-2" onSubmit={onCreateApplication}>
-              <input className="rounded-lg border border-border bg-background px-3 py-2" placeholder={t("jobTitle")} value={appForm.role_title} onChange={(e) => setAppForm((p) => ({ ...p, role_title: e.target.value }))} />
-              <input className="rounded-lg border border-border bg-background px-3 py-2" placeholder={t("company")} value={appForm.company} onChange={(e) => setAppForm((p) => ({ ...p, company: e.target.value }))} />
-              <select className="rounded-lg border border-border bg-background px-3 py-2" value={appForm.status} onChange={(e) => setAppForm((p) => ({ ...p, status: e.target.value as JobApplicationStatus }))}>
-                <option value="applied">Applied</option>
-                <option value="screening">Screening</option>
-                <option value="interview">Interview</option>
-                <option value="offer">Offer</option>
-                <option value="rejected">Rejected</option>
-                <option value="hired">Hired</option>
-              </select>
-              <input type="date" className="rounded-lg border border-border bg-background px-3 py-2" value={appForm.follow_up_date} onChange={(e) => setAppForm((p) => ({ ...p, follow_up_date: e.target.value }))} />
-              <textarea className="md:col-span-2 rounded-lg border border-border bg-background px-3 py-2" rows={3} placeholder={t("notes")} value={appForm.notes} onChange={(e) => setAppForm((p) => ({ ...p, notes: e.target.value }))} />
-              <button className="md:col-span-2 rounded-lg bg-primary px-4 py-2 text-primary-foreground">{t("addApplication")}</button>
-            </form>
-          </section>
+          {(() => {
+            const stats = {
+              total: applications.length,
+              active: applications.filter((a) => ["applied", "screening"].includes(a.status)).length,
+              interview: applications.filter((a) => a.status === "interview").length,
+              offer: applications.filter((a) => a.status === "offer").length,
+              rejected: applications.filter((a) => a.status === "rejected").length,
+            };
+            const statusOrder: JobApplicationStatus[] = ["applied", "screening", "interview", "offer", "hired"];
+            const statusLabel: Record<(typeof statusOrder)[number], string> = {
+              applied: "Applied",
+              screening: "Screening",
+              interview: "Interview",
+              offer: "Offer",
+              hired: "Hired",
+              rejected: "Rejected",
+            };
+            const currentStep = applications.reduce((max, app) => {
+              const idx = statusOrder.indexOf(app.status);
+              return idx > max && app.status !== "rejected" ? idx : max;
+            }, -1);
+            const grouped = {
+              active: applications.filter((a) => ["applied", "screening"].includes(a.status)),
+              progress: applications.filter((a) => ["interview", "offer"].includes(a.status)),
+              closed: applications.filter((a) => ["rejected", "hired"].includes(a.status)),
+            };
+            const statusBadge = (status: JobApplicationStatus) => {
+              if (status === "applied" || status === "screening") return "bg-blue-900/40 text-blue-200 border border-blue-500/40";
+              if (status === "interview") return "bg-amber-900/40 text-amber-200 border border-amber-500/40";
+              if (status === "offer") return "bg-green-900/40 text-green-200 border border-green-500/40";
+              if (status === "hired") return "bg-green-900/30 text-green-200 border border-green-500/40";
+              return "bg-red-900/40 text-red-200 border border-red-500/40";
+            };
 
-          <section className="rounded-2xl border border-border bg-card p-5">
-            <h2 className="text-lg font-semibold">{t("myApplications")}</h2>
-            <div className="mt-3 space-y-2">
-              {applications.length === 0 ? <p className="text-sm text-muted-foreground">{t("emptyApplications")}</p> : applications.map((item) => {
-                const showReminder = item.follow_up_date && item.follow_up_date <= today && !["offer", "rejected", "hired"].includes(item.status);
-                return (
-                  <article key={item.id} className="rounded-lg border border-border p-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="font-medium">{item.role_title} · {item.company}</p>
-                      <select className="rounded border border-border bg-background px-2 py-1 text-xs" value={item.status} onChange={(e) => void onStatusChange(item.id, e.target.value as JobApplicationStatus)}>
-                        <option value="applied">Applied</option>
-                        <option value="screening">Screening</option>
-                        <option value="interview">Interview</option>
-                        <option value="offer">Offer</option>
-                        <option value="rejected">Rejected</option>
-                        <option value="hired">Hired</option>
-                      </select>
+            return (
+              <>
+                <section className="space-y-4 rounded-3xl border border-border/60 bg-card/95 p-4 shadow-sm sm:p-5">
+                  <div className="space-y-1">
+                    <div className="text-xl font-bold sm:text-2xl" style={{ fontFamily: "Space Grotesk, DM Sans, system-ui" }}>☰ Job Tracker</div>
+                    <p className="text-sm text-muted-foreground">Track every application — status, follow-ups, and AI-drafted outreach</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
+                    {[
+                      { label: "Total", value: stats.total, color: "text-blue-300" },
+                      { label: "Active", value: stats.active, color: "text-cyan-300" },
+                      { label: "Interview", value: stats.interview, color: "text-amber-300" },
+                      { label: "Offer", value: stats.offer, color: "text-green-300" },
+                      { label: "Rejected", value: stats.rejected, color: "text-red-300" },
+                    ].map((item) => (
+                      <div key={item.label} className="rounded-xl border border-border bg-background/70 p-4 text-center">
+                        <div className={`text-3xl font-bold ${item.color}`} style={{ fontFamily: "Space Grotesk, DM Sans, system-ui" }}>{item.value}</div>
+                        <div className="mt-1 text-xs uppercase tracking-[0.18em] text-muted-foreground">{item.label}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="rounded-xl border border-border bg-background/60 p-3 sm:p-4">
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                      <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Your application pipeline</div>
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] ${
+                          currentStep >= 0
+                            ? "border border-amber-500/40 bg-amber-500/15 text-amber-200"
+                            : "border border-border bg-background/70 text-muted-foreground"
+                        }`}
+                      >
+                        {currentStep >= 0 ? `Current: ${statusLabel[statusOrder[currentStep]]}` : "No active pipeline yet"}
+                      </span>
                     </div>
-                    {showReminder ? <p className="mt-2 text-xs text-amber-300">{t("followUpReminder")}: {item.follow_up_date}</p> : null}
-                    {item.notes ? <p className="mt-2 text-sm text-muted-foreground">{item.notes}</p> : null}
-                    {item.ai_followup_draft ? <pre className="mt-2 whitespace-pre-wrap rounded bg-muted p-2 text-xs text-muted-foreground">{item.ai_followup_draft}</pre> : null}
-                    <div className="mt-3 flex gap-2">
-                      <button className="rounded-lg border border-border px-3 py-1.5 text-sm" onClick={() => void onGenerateDraft(item)}>{t("generateFollowUpDraft")}</button>
-                      <button className="rounded-lg border border-red-500/40 px-3 py-1.5 text-sm text-red-400" onClick={() => void onDeleteApplication(item.id)}>{t("delete")}</button>
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                      {statusOrder.map((step, idx) => {
+                        const state = idx < currentStep ? "done" : idx === currentStep ? "current" : "upcoming";
+                        const countAtStep = applications.filter((a) => a.status === step).length;
+                        const connectorColor = state === "done" ? "#22c55e" : state === "current" ? "#f59e0b" : "#2d3644";
+                        const progress = state === "done" ? "100%" : state === "current" ? "58%" : "0%";
+                        return (
+                          <div
+                            key={step}
+                            className={`rounded-xl border px-3 py-3 text-center transition-all ${
+                              state === "done"
+                                ? "border-emerald-500/50 bg-emerald-500/10"
+                                : state === "current"
+                                  ? "border-amber-500/60 bg-amber-500/10 shadow-[0_0_0_1px_rgba(245,158,11,0.2)]"
+                                  : "border-border/70 bg-background/70"
+                            }`}
+                          >
+                            <div className="relative mb-2 flex items-center justify-center">
+                              {idx !== 0 && <div className="absolute -left-[calc(100%+8px)] top-1/2 hidden h-[2px] w-[52px] -translate-y-1/2 lg:block" style={{ background: idx <= currentStep ? "#22c55e" : "#2d3644" }} />}
+                              <div
+                                className={`flex h-9 w-9 items-center justify-center rounded-full border-2 ${
+                                  state === "done"
+                                    ? "border-emerald-400 bg-emerald-500/20 text-emerald-200"
+                                    : state === "current"
+                                      ? "border-amber-300 bg-amber-500/20 text-amber-100"
+                                      : "border-border bg-background text-muted-foreground"
+                                }`}
+                              >
+                                {state === "done" ? <Check className="h-5 w-5" /> : state === "current" ? <Dot className="h-6 w-6" /> : <Circle className="h-4 w-4" />}
+                              </div>
+                            </div>
+                            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-foreground">{statusLabel[step]}</div>
+                            <div className="mt-1 text-[11px] text-muted-foreground">{countAtStep} item{countAtStep === 1 ? "" : "s"}</div>
+                            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-border/70">
+                              <div className="h-full rounded-full transition-all duration-300" style={{ width: progress, background: connectorColor }} />
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
-                  </article>
-                );
-              })}
-            </div>
-          </section>
+                  </div>
+                </section>
+
+                <section className="rounded-3xl border border-border/60 bg-card/95 shadow-sm">
+                  <button
+                    onClick={() => setShowTrackerForm((v) => !v)}
+                    className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-semibold"
+                  >
+                    <span className="flex items-center gap-2">
+                      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-500/20 text-blue-300">+</span>
+                      Track a new application
+                    </span>
+                    <span className="text-muted-foreground">{showTrackerForm ? "Hide" : "Show"}</span>
+                  </button>
+                  <AnimatePresence initial={false}>
+                    {showTrackerForm && (
+                      <motion.form
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="space-y-3 border-t border-border px-4 pb-4 pt-3"
+                        onSubmit={onCreateApplication}
+                      >
+                        <div className="grid gap-3 md:grid-cols-2">
+                          <input className="rounded-xl border border-border bg-background px-3 py-2.5" placeholder={t("jobTitle")} value={appForm.role_title} onChange={(e) => setAppForm((p) => ({ ...p, role_title: e.target.value }))} />
+                          <input className="rounded-xl border border-border bg-background px-3 py-2.5" placeholder={t("company")} value={appForm.company} onChange={(e) => setAppForm((p) => ({ ...p, company: e.target.value }))} />
+                        </div>
+                        <div className="grid gap-3 md:grid-cols-2">
+                          <select className="rounded-xl border border-border bg-background px-3 py-2.5" value={appForm.status} onChange={(e) => setAppForm((p) => ({ ...p, status: e.target.value as JobApplicationStatus }))}>
+                            <option value="applied">Applied</option>
+                            <option value="screening">Screening</option>
+                            <option value="interview">Interview</option>
+                            <option value="offer">Offer</option>
+                            <option value="rejected">Rejected</option>
+                            <option value="hired">Hired</option>
+                          </select>
+                          <input type="date" className="rounded-xl border border-border bg-background px-3 py-2.5" value={appForm.follow_up_date} onChange={(e) => setAppForm((p) => ({ ...p, follow_up_date: e.target.value }))} />
+                        </div>
+                        <textarea className="w-full rounded-xl border border-border bg-background px-3 py-2.5" rows={3} placeholder={t("notes")} value={appForm.notes} onChange={(e) => setAppForm((p) => ({ ...p, notes: e.target.value }))} />
+                        <button className="w-full rounded-xl bg-primary px-4 py-2.5 font-semibold text-primary-foreground">{t("addApplication")}</button>
+                      </motion.form>
+                    )}
+                  </AnimatePresence>
+                </section>
+
+                <p className="text-xs text-muted-foreground">📝 Click any card to expand details & generate AI follow-up drafts</p>
+
+                <div className="grid gap-4 lg:grid-cols-3">
+                  {[
+                    { title: "Active", color: "text-blue-300", dot: "bg-blue-400", items: grouped.active },
+                    { title: "In Progress", color: "text-amber-300", dot: "bg-amber-400", items: grouped.progress },
+                    { title: "Closed", color: "text-green-300", dot: "bg-green-400", items: grouped.closed },
+                  ].map((col) => (
+                    <div key={col.title} className="rounded-2xl border border-border bg-card/95 p-3.5 space-y-3 shadow-sm sm:p-4">
+                      <div className="flex items-center justify-between text-sm font-semibold" style={{ fontFamily: "Space Grotesk, DM Sans, system-ui" }}>
+                        <div className="flex items-center gap-2">
+                          <span className={`h-2 w-2 rounded-full ${col.dot}`} />
+                          {col.title}
+                        </div>
+                        <span className="text-muted-foreground">{col.items.length}</span>
+                      </div>
+                      <div className="space-y-3">
+                        {col.items.length === 0 ? (
+                          <div className="flex h-32 items-center justify-center rounded-xl border border-dashed border-border text-sm text-muted-foreground">No items</div>
+                        ) : (
+                          col.items.map((item) => {
+                            const showReminder = item.follow_up_date && item.follow_up_date <= today && !["offer", "rejected", "hired"].includes(item.status);
+                            return (
+                              <details key={item.id} className="group rounded-xl border border-border bg-background/70 p-2.5 sm:p-3">
+                                <summary className="flex cursor-pointer items-start justify-between gap-2">
+                                  <div>
+                                    <div className="text-sm font-semibold sm:text-base">{item.role_title}</div>
+                                    <div className="text-sm text-muted-foreground">{item.company}</div>
+                                  </div>
+                                  <span className={`rounded-full px-2 py-1 text-[11px] font-semibold ${statusBadge(item.status)}`}>
+                                    {item.status}
+                                  </span>
+                                </summary>
+                                <div className="mt-3 space-y-2 text-sm text-muted-foreground">
+                                  {item.follow_up_date && (
+                                    <div className="flex items-center gap-2 text-xs">
+                                      <span role="img" aria-label="calendar">📅</span>
+                                      {item.follow_up_date}
+                                      {showReminder ? <span className="text-amber-300">• Follow-up due</span> : null}
+                                    </div>
+                                  )}
+                                  {item.notes ? <p className="text-sm text-muted-foreground">{item.notes}</p> : null}
+                                  {item.ai_followup_draft ? <pre className="whitespace-pre-wrap rounded-lg bg-muted p-2 text-xs">{item.ai_followup_draft}</pre> : null}
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <select className="rounded border border-border bg-background px-2 py-1 text-xs" value={item.status} onChange={(e) => void onStatusChange(item.id, e.target.value as JobApplicationStatus)}>
+                                      <option value="applied">Applied</option>
+                                      <option value="screening">Screening</option>
+                                      <option value="interview">Interview</option>
+                                      <option value="offer">Offer</option>
+                                      <option value="rejected">Rejected</option>
+                                      <option value="hired">Hired</option>
+                                    </select>
+                                    <button className="rounded-lg border border-border px-3 py-1.5 text-xs" onClick={() => void onGenerateDraft(item)}>{t("generateFollowUpDraft")}</button>
+                                    <button className="rounded-lg border border-red-500/40 px-3 py-1.5 text-xs text-red-400" onClick={() => void onDeleteApplication(item.id)}>{t("delete")}</button>
+                                  </div>
+                                </div>
+                              </details>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            );
+          })()}
         </div>
       ) : activeTab === "matching" ? (
         <JobMatchingPanel userId={userId!} approvedPosts={approvedPosts} onError={setError} />

@@ -158,11 +158,53 @@ export function generateFollowUpDraft(roleTitle: string, company: string) {
 // ============================================
 
 export async function getUserProfileForMatching(supabase: SupabaseClient, userId: string) {
-  const { data: profile } = await supabase
+  const { data: profile, error: profileError } = await supabase
     .from("profiles")
     .select("id, target_role, preferred_location, years_experience")
     .eq("id", userId)
     .maybeSingle();
+
+  // Fallback for schema versions where matching columns are not on profiles.
+  if (profileError) {
+    const { data: baseProfile, error: baseProfileError } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (baseProfileError || !baseProfile) {
+      return null;
+    }
+
+    let fallbackTargetRole: string | null = null;
+
+    // Optional enrichment: infer target role from latest roadmap if available.
+    const { data: roadmap } = await supabase
+      .from("roadmaps")
+      .select("target_role")
+      .eq("user_id", userId)
+      .not("target_role", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    fallbackTargetRole = roadmap?.target_role ?? null;
+
+    const { data: skillsRows } = await supabase
+      .from("skills")
+      .select("name")
+      .eq("user_id", userId);
+
+    const skills = (skillsRows ?? []).map((s) => s.name).filter(Boolean);
+
+    return {
+      id: baseProfile.id,
+      target_role: fallbackTargetRole,
+      preferred_location: null,
+      years_experience: null,
+      skills,
+    };
+  }
 
   const { data: skillsRows } = await supabase
     .from("skills")
@@ -180,7 +222,7 @@ export async function getUserProfileForMatching(supabase: SupabaseClient, userId
 }
 
 export async function getUserJobMatches(supabase: SupabaseClient, userId: string, limit = 10) {
-  return supabase
+  const richQuery = await supabase
     .from("job_matches")
     .select(
       `
@@ -199,8 +241,76 @@ export async function getUserJobMatches(supabase: SupabaseClient, userId: string
     )
     .eq("user_id", userId)
     .order("total_score", { ascending: false })
-    .limit(limit)
-    .returns<any[]>();
+    .limit(limit);
+
+  if (!richQuery.error) {
+    return richQuery;
+  }
+
+  // Fallback for schema variants without matched_skills/missing_skills/computed_at columns.
+  const basicQuery = await supabase
+    .from("job_matches")
+    .select(
+      `
+      id,
+      job_id,
+      skill_score,
+      role_score,
+      location_score,
+      experience_score,
+      total_score,
+      created_at
+    `
+    )
+    .eq("user_id", userId)
+    .order("total_score", { ascending: false })
+    .limit(limit);
+
+  if (basicQuery.error) {
+    return basicQuery;
+  }
+
+  const basicRows = (basicQuery.data ?? []) as Array<{
+    id: string;
+    job_id: string;
+    skill_score: number;
+    role_score: number;
+    location_score: number;
+    experience_score: number;
+    total_score: number;
+    created_at: string;
+  }>;
+
+  const jobIds = Array.from(new Set(basicRows.map((row) => row.job_id).filter(Boolean)));
+
+  let jobsById = new Map<string, {
+    id: string;
+    title: string;
+    company: string;
+    location: string | null;
+    description: string;
+    required_skills: string[];
+    experience_min: number | null;
+    experience_max: number | null;
+  }>();
+
+  if (jobIds.length > 0) {
+    const { data: jobsRows } = await supabase
+      .from("jobs")
+      .select("id, title, company, location, description, required_skills, experience_min, experience_max")
+      .in("id", jobIds);
+
+    jobsById = new Map((jobsRows ?? []).map((job) => [job.id, job]));
+  }
+
+  const mergedRows = basicRows.map((row) => ({
+    ...row,
+    matched_skills: [] as string[],
+    missing_skills: [] as string[],
+    jobs: jobsById.get(row.job_id) ?? null,
+  }));
+
+  return { data: mergedRows, error: null };
 }
 
 export async function upsertJobMatch(
@@ -217,7 +327,7 @@ export async function upsertJobMatch(
     missing_skills: string[];
   }
 ) {
-  return supabase
+  const richUpsert = await supabase
     .from("job_matches")
     .upsert(
       {
@@ -225,6 +335,28 @@ export async function upsertJobMatch(
         job_id: jobId,
         ...matchData,
         computed_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id,job_id" }
+    )
+    .select("*")
+    .single();
+
+  if (!richUpsert.error) {
+    return richUpsert;
+  }
+
+  // Fallback for schema versions without matched_skills/missing_skills/computed_at.
+  return supabase
+    .from("job_matches")
+    .upsert(
+      {
+        user_id: userId,
+        job_id: jobId,
+        skill_score: matchData.skill_score,
+        role_score: matchData.role_score,
+        location_score: matchData.location_score,
+        experience_score: matchData.experience_score,
+        total_score: matchData.total_score,
       },
       { onConflict: "user_id,job_id" }
     )

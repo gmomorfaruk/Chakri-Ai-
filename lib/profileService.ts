@@ -10,6 +10,7 @@ import {
 } from "@/types/profile";
 
 type ProfileUpdate = Pick<Profile, "username" | "full_name" | "bio" | "avatar_url" | "theme" | "is_public">;
+type ProfileBootstrap = Partial<ProfileUpdate>;
 type InsertEducation = Omit<Education, "id">;
 type InsertSkill = Omit<Skill, "id">;
 type InsertProject = Omit<Project, "id">;
@@ -44,6 +45,60 @@ export async function fetchProfileBundle(supabase: SupabaseClient, userId: strin
 
 export async function upsertProfile(supabase: SupabaseClient, userId: string, payload: ProfileUpdate) {
   return supabase.from("profiles").upsert({ id: userId, ...payload }).select("*").single();
+}
+
+export async function ensureProfileExists(supabase: SupabaseClient, userId: string, payload: ProfileBootstrap = {}) {
+  const existingRes = await supabase.from("profiles").select("id").eq("id", userId).maybeSingle();
+
+  if (existingRes.error) {
+    return { data: null, error: existingRes.error };
+  }
+
+  if (existingRes.data) {
+    return { data: existingRes.data, error: null };
+  }
+
+  const insertRes = await supabase
+    .from("profiles")
+    .insert({
+      id: userId,
+      username: payload.username ?? null,
+      full_name: payload.full_name ?? null,
+      bio: payload.bio ?? null,
+      avatar_url: payload.avatar_url ?? null,
+      theme: payload.theme ?? "default",
+      is_public: payload.is_public ?? false,
+    })
+    .select("*")
+    .single();
+
+  // Handle race condition or username uniqueness conflicts.
+  if (insertRes.error?.code === "23505") {
+    const existingByIdRes = await supabase.from("profiles").select("*").eq("id", userId).maybeSingle();
+    if (existingByIdRes.error) {
+      return { data: null, error: existingByIdRes.error };
+    }
+
+    if (existingByIdRes.data) {
+      return { data: existingByIdRes.data, error: null };
+    }
+
+    return supabase
+      .from("profiles")
+      .insert({
+        id: userId,
+        username: null,
+        full_name: payload.full_name ?? null,
+        bio: payload.bio ?? null,
+        avatar_url: payload.avatar_url ?? null,
+        theme: payload.theme ?? "default",
+        is_public: payload.is_public ?? false,
+      })
+      .select("*")
+      .single();
+  }
+
+  return insertRes;
 }
 
 export async function createEducation(supabase: SupabaseClient, payload: InsertEducation) {

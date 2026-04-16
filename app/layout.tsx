@@ -2,7 +2,20 @@ import "../styles/globals.css";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { I18nProvider } from "@/components/providers/I18nProvider";
 import { SupabaseProvider } from "@/components/providers/SupabaseProvider";
+import { Inter, Manrope } from "next/font/google";
 import type { Metadata } from "next";
+
+const inter = Inter({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-inter",
+});
+
+const manrope = Manrope({
+  subsets: ["latin"],
+  weight: ["600", "700", "800"],
+  variable: "--font-manrope",
+});
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
@@ -33,7 +46,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body suppressHydrationWarning>
+      <body className={`${inter.className} ${manrope.variable}`} suppressHydrationWarning>
         <ThemeProvider>
           <I18nProvider>
             <SupabaseProvider>

@@ -3,7 +3,7 @@
 import { ConversationalLearningAI } from "@/components/learning/ConversationalLearningAI";
 
 /**
- * Learning AI Page - Conversational Learning Module
+ * Career Coach AI Page - Conversational Learning Module
  * 
  * Features:
  * - ChatGPT-style conversational interface

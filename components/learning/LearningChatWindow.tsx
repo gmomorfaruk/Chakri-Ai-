@@ -14,6 +14,7 @@ interface LearningChatWindowProps {
   isThinking: boolean;
   messagesEndRef: React.RefObject<HTMLDivElement | null>;
   onSuggestedQuestion: (question: string) => void;
+  onScroll?: React.UIEventHandler<HTMLDivElement>;
 }
 
 export function LearningChatWindow({
@@ -22,9 +23,13 @@ export function LearningChatWindow({
   isThinking,
   messagesEndRef,
   onSuggestedQuestion,
+  onScroll,
 }: LearningChatWindowProps) {
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto bg-gradient-to-b from-[#0d1117] to-[#0a0f1e] px-4 py-6 sm:px-6 lg:px-8">
+    <div
+      className="min-h-0 flex-1 overflow-y-auto bg-gradient-to-b from-[#0d1117] to-[#0a0f1e] px-4 py-6 sm:px-6 lg:px-8"
+      onScroll={onScroll}
+    >
       <div className="mx-auto max-w-3xl space-y-4">
         {/* Messages */}
         {messages.map((message, idx) => (

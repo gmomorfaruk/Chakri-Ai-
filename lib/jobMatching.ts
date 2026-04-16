@@ -10,6 +10,20 @@ const STOP_WORDS = new Set([
   "the", "and", "for", "with", "from", "that", "this", "have", "will", "your", "you",
   "our", "job", "role", "team", "work", "years", "year", "experience", "required", "preferred",
   "skills", "ability", "strong", "knowledge", "must", "good", "using", "into", "across", "within",
+  "candidate", "candidates", "responsibility", "responsibilities", "professional", "skillful", "skillfull",
+  "excellent", "proven", "familiar", "hands", "detail", "oriented", "collaborate", "stakeholders",
+]);
+
+const FALLBACK_TECH_HINTS = new Set([
+  "frontend", "backend", "fullstack", "full-stack", "devops", "api", "apis", "database", "databases",
+  "cloud", "microservices", "automation", "deployment", "scalability", "scalable", "architecture",
+  "analytics", "dashboard", "testing", "security", "authentication", "authorization", "monitoring",
+  "performance", "integration", "pipeline", "pipelines", "data", "ml", "ai",
+]);
+
+const FALLBACK_TECH_PHRASES = new Set([
+  "data analysis", "machine learning", "project management", "api design", "system design", "quality assurance",
+  "cloud architecture", "data engineering", "software testing", "ui ux",
 ]);
 
 const SKILL_CATALOG = [
@@ -29,14 +43,23 @@ function unique(values: string[]): string[] {
 }
 
 function extractFallbackKeywords(text: string): string[] {
-  return unique(
-    normalize(text)
-      .replace(/[^a-z0-9.\s/+_-]/g, " ")
-      .split(" ")
-      .map((word) => word.trim())
-      .filter((word) => word.length >= 4 && !STOP_WORDS.has(word))
-      .slice(0, 12)
-  );
+  const words = normalize(text)
+    .replace(/[^a-z0-9\s+#/_-]/g, " ")
+    .split(" ")
+    .map((word) => word.trim())
+    .filter((word) => word.length >= 3 && !STOP_WORDS.has(word));
+
+  const keywordHints = words.filter((word) => FALLBACK_TECH_HINTS.has(word) || /[+#0-9]/.test(word));
+
+  const phraseHints: string[] = [];
+  for (let i = 0; i < words.length - 1; i += 1) {
+    const phrase = `${words[i]} ${words[i + 1]}`;
+    if (FALLBACK_TECH_PHRASES.has(phrase)) {
+      phraseHints.push(phrase);
+    }
+  }
+
+  return unique([...phraseHints, ...keywordHints]).slice(0, 12);
 }
 
 export function analyzeCareerDnaMatch(jobDescription: string, profileSkills: string[]): CareerDnaResult {

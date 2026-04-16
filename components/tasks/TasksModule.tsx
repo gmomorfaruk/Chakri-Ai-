@@ -4,26 +4,20 @@ import { useEffect, useMemo, useState } from "react";
 import { useI18n } from "@/components/providers/I18nProvider";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
 import {
-  createQuiz,
-  createQuizAttempt,
   createRoadmap,
   createRoadmapWeeks,
   createTask,
   createTasksBulk,
   deleteTask,
-  generateQuizQuestions,
   generateRoadmapWeeks,
-  getQuizAttempts,
-  getQuizzes,
   getRoadmapWeeks,
   getRoadmaps,
   getTasks,
   roadmapWeeksToTasks,
-  scoreQuiz,
   updateTaskPriority,
   updateTaskStatus,
 } from "@/lib/tasksService";
-import { Quiz, QuizAttempt, Roadmap, RoadmapWeek, TaskItem, TaskPriority, TaskStatus } from "@/types/tasks";
+import { Roadmap, RoadmapWeek, TaskItem, TaskPriority, TaskStatus } from "@/types/tasks";
 
 export function TasksModule() {
   const { t } = useI18n();
@@ -31,7 +25,7 @@ export function TasksModule() {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<"roadmap" | "tasks" | "quiz">("roadmap");
+  const [tab, setTab] = useState<"roadmap" | "tasks">("roadmap");
 
   const [userId, setUserId] = useState<string | null>(null);
 
@@ -40,15 +34,8 @@ export function TasksModule() {
   const [roadmapWeeks, setRoadmapWeeks] = useState<RoadmapWeek[]>([]);
 
   const [tasks, setTasks] = useState<TaskItem[]>([]);
-  const [quizzes, setQuizzes] = useState<Quiz[]>([]);
-  const [attempts, setAttempts] = useState<QuizAttempt[]>([]);
-
   const [roadmapForm, setRoadmapForm] = useState({ title: "", target_role: "", goal: "", total_weeks: 4 });
   const [taskForm, setTaskForm] = useState({ title: "", due_date: "", priority: "medium" as TaskPriority });
-  const [quizTopic, setQuizTopic] = useState("Technical Interview Basics");
-
-  const [activeQuizId, setActiveQuizId] = useState<string | null>(null);
-  const [answers, setAnswers] = useState<number[]>([]);
 
   useEffect(() => {
     void init();
@@ -77,18 +64,14 @@ export function TasksModule() {
   async function reload(uid: string) {
     if (!supabase) return;
 
-    const [roadmapsRes, tasksRes, quizzesRes, attemptsRes] = await Promise.all([
+    const [roadmapsRes, tasksRes] = await Promise.all([
       getRoadmaps(supabase, uid),
       getTasks(supabase, uid),
-      getQuizzes(supabase, uid),
-      getQuizAttempts(supabase, uid),
     ]);
 
     const r = roadmapsRes.data ?? [];
     setRoadmaps(r);
     setTasks(tasksRes.data ?? []);
-    setQuizzes(quizzesRes.data ?? []);
-    setAttempts(attemptsRes.data ?? []);
 
     const firstRoadmapId = selectedRoadmapId || r[0]?.id || null;
     setSelectedRoadmapId(firstRoadmapId);
@@ -183,52 +166,6 @@ export function TasksModule() {
     await reload(userId);
   }
 
-  async function onCreateQuiz() {
-    if (!supabase || !userId) return;
-
-    const questions = generateQuizQuestions(quizTopic);
-    const { data, error: createError } = await createQuiz(supabase, {
-      user_id: userId,
-      title: `${quizTopic} Quiz`,
-      topic: quizTopic,
-      questions,
-    });
-
-    if (createError || !data) {
-      setError(createError?.message ?? t("quizCreateFailed"));
-      return;
-    }
-
-    setActiveQuizId(data.id);
-    setAnswers(Array(questions.length).fill(-1));
-    await reload(userId);
-  }
-
-  async function onSubmitQuiz() {
-    if (!supabase || !userId || !activeQuiz) return;
-
-    const scored = scoreQuiz(activeQuiz.questions, answers);
-    const { error: attemptError } = await createQuizAttempt(supabase, {
-      quiz_id: activeQuiz.id,
-      user_id: userId,
-      answers,
-      score: scored.score,
-      total: scored.total,
-    });
-
-    if (attemptError) {
-      setError(attemptError.message);
-      return;
-    }
-
-    await reload(userId);
-  }
-
-  const activeQuiz = useMemo(
-    () => quizzes.find((q) => q.id === activeQuizId) ?? null,
-    [quizzes, activeQuizId]
-  );
-
   const reminders = useMemo(() => {
     const today = new Date().toISOString().slice(0, 10);
     return tasks.filter((task) => task.status !== "done" && task.due_date && task.due_date <= today);
@@ -275,7 +212,6 @@ export function TasksModule() {
         {[
           { id: "roadmap", label: t("roadmapPlanner") },
           { id: "tasks", label: t("tasks") },
-          { id: "quiz", label: t("quizPractice") },
         ].map((btn) => (
           <button
             key={btn.id}
@@ -378,64 +314,7 @@ export function TasksModule() {
             </div>
           </section>
         </div>
-      ) : (
-        <div className="grid gap-4 lg:grid-cols-2">
-          <section className="rounded-2xl border border-border bg-card p-5">
-            <h2 className="text-lg font-semibold">{t("quizGenerator")}</h2>
-            <div className="mt-3 grid gap-2">
-              <input className="rounded-lg border border-border bg-background px-3 py-2" value={quizTopic} onChange={(e) => setQuizTopic(e.target.value)} placeholder={t("quizTopic")} />
-              <button className="rounded-lg bg-primary px-4 py-2 text-primary-foreground" onClick={onCreateQuiz}>{t("generateQuiz")}</button>
-            </div>
-          </section>
-
-          <section className="rounded-2xl border border-border bg-card p-5">
-            <h2 className="text-lg font-semibold">{t("quizAttempts")}</h2>
-            <div className="mt-3 space-y-2">
-              {attempts.length === 0 ? <p className="text-sm text-muted-foreground">{t("emptyQuizAttempts")}</p> : attempts.slice(0, 8).map((a) => (
-                <p key={a.id} className="rounded border border-border p-2 text-sm">{t("score")}: {a.score}/{a.total}</p>
-              ))}
-            </div>
-          </section>
-
-          <section className="rounded-2xl border border-border bg-card p-5 lg:col-span-2">
-            <h2 className="text-lg font-semibold">{t("quizPractice")}</h2>
-            <select className="mt-2 w-full rounded-lg border border-border bg-background px-3 py-2" value={activeQuizId ?? ""} onChange={(e) => {
-              const id = e.target.value || null;
-              setActiveQuizId(id);
-              const q = quizzes.find((quiz) => quiz.id === id);
-              setAnswers(Array(q?.questions?.length ?? 0).fill(-1));
-            }}>
-              <option value="">{t("selectQuiz")}</option>
-              {quizzes.map((quiz) => <option key={quiz.id} value={quiz.id}>{quiz.title}</option>)}
-            </select>
-
-            {!activeQuiz ? (
-              <p className="mt-3 text-sm text-muted-foreground">{t("emptyQuiz")}</p>
-            ) : (
-              <div className="mt-3 space-y-3">
-                {activeQuiz.questions.map((q, idx) => (
-                  <article key={q.id} className="rounded-lg border border-border p-3">
-                    <p className="font-medium">{idx + 1}. {q.question}</p>
-                    <div className="mt-2 space-y-1">
-                      {q.options.map((opt, optIdx) => (
-                        <label key={opt} className="flex items-center gap-2 text-sm">
-                          <input type="radio" name={`quiz-q-${q.id}`} checked={answers[idx] === optIdx} onChange={() => setAnswers((prev) => {
-                            const copy = [...prev];
-                            copy[idx] = optIdx;
-                            return copy;
-                          })} />
-                          <span>{opt}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </article>
-                ))}
-                <button className="rounded-lg bg-primary px-4 py-2 text-primary-foreground" onClick={onSubmitQuiz}>{t("submitQuiz")}</button>
-              </div>
-            )}
-          </section>
-        </div>
-      )}
+      ) : null}
     </section>
   );
 }

@@ -9,7 +9,7 @@
   "jobMatching": "Job Matching",
   "aiCareerCoach": "AI Career Coach",
   "interviewCoach": "Interview Coach",
-  "learningCoach": "Career Learning AI",
+  "learningCoach": "Career Coach AI",
   "voiceVivaPractice": "Voice Viva Practice",
   "quizPractice": "Quiz Practice",
   "roadmapPlanner": "Roadmap Planner",
@@ -257,5 +257,5 @@
   ,"technicalModeDescription": "Ask technical interview questions and get expert coaching."
   ,"behavioralModeDescription": "Practice answering behavioral questions with targeted feedback."
   ,"hrModeDescription": "Get HR interview preparation guidance from an expert coach."
-  ,"learningCoach": "Learning AI"
+  ,"learningCoach": "Career Coach AI"
 }

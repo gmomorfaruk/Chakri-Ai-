@@ -14,7 +14,7 @@ export function VoiceControlBar({ state, sessionStarted, onMicClick }: VoiceCont
 
   // Determine button appearance
   const getButtonClass = () => {
-    let baseClass =
+    const baseClass =
       "relative w-24 h-24 rounded-full font-bold text-white transition-all duration-200";
 
     if (isDisabled) {

@@ -9,7 +9,7 @@
   "jobMatching": "চাকরি মিল",
   "aiCareerCoach": "এআই ক্যারিয়ার কোচ",
   "interviewCoach": "ইন্টারভিউ কোচ",
-  "learningCoach": "ক্যারিয়ার লার্নিং এআই",
+  "learningCoach": "ক্যারিয়ার কোচ এআই",
   "voiceVivaPractice": "ভয়েস ভাইভা প্র্যাকটিস",
   "quizPractice": "কুইজ প্র্যাকটিস",
   "roadmapPlanner": "রোডম্যাপ পরিকল্পক",
@@ -257,5 +257,5 @@
   ,"technicalModeDescription": "টেকনিক্যাল সাক্ষাৎকার প্রশ্ন জিজ্ঞাসা করুন এবং বিশেষজ্ঞ কোচিং পান।"
   ,"behavioralModeDescription": "আচরণগত প্রশ্নের উত্তর প্র্যাকটিস করুন লক্ষ্যবস্তু প্রতিক্রিয়া সহ।"
   ,"hrModeDescription": "একজন বিশেষজ্ঞ কোচের কাছ থেকে এইচআর সাক্ষাৎকার প্রস্তুতির নির্দেশনা পান।"
-  ,"learningCoach": "লার্নিং এআই"
+  ,"learningCoach": "ক্যারিয়ার কোচ এআই"
 }

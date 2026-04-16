@@ -3,13 +3,27 @@
 import { useEffect, useRef, useState } from "react";
 import { useI18n } from "@/components/providers/I18nProvider";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
-import { upsertProfile } from "@/lib/profileService";
-import { LearningCategoryPanel } from "./LearningCategoryPanel";
+import { ensureProfileExists } from "@/lib/profileService";
 import { LearningChatWindow } from "./LearningChatWindow";
 import { LearningInputBar } from "./LearningInputBar";
 import { LearningWelcomeState } from "./LearningWelcomeState";
+import { LearningCategoryPanel } from "./LearningCategoryPanel";
+import dynamic from "next/dynamic";
+
+// Lazy-load full voice conversation experience inside Career Coach AI tab
+const VoiceConversation = dynamic(
+  () => import("@/components/coach/AIVoiceConversation").then((m) => m.AIVoiceConversation),
+  { ssr: false, loading: () => null }
+);
 
 type LearningTopic = "general" | "it" | "govt" | "bank" | "ngo";
+const topicLabel: Record<LearningTopic, string> = {
+  general: "General",
+  it: "IT & Tech",
+  govt: "Government / BCS",
+  bank: "Banking",
+  ngo: "NGO / Dev",
+};
 
 interface LearningMessage {
   id: string;
@@ -28,13 +42,21 @@ export function ConversationalLearningAI() {
 
   // Chat state
   const [topic, setTopic] = useState<LearningTopic>("general");
-  const [messages, setMessages] = useState<LearningMessage[]>([]);
+const [messages, setMessages] = useState<LearningMessage[]>([]);
   const [isThinking, setIsThinking] = useState(false);
   const [streamingText, setStreamingText] = useState("");
+  const [showVoice, setShowVoice] = useState(false);
+  const [sidebarOpen] = useState(true);
+  const [autoScroll, setAutoScroll] = useState(true);
 
   // UI state
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const typingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const stopRequestedRef = useRef(false);
+  const streamingTextRef = useRef("");
   const [showWelcome, setShowWelcome] = useState(true);
+  const [voiceSupported, setVoiceSupported] = useState(true);
+  const [utilityOpen, setUtilityOpen] = useState(false);
 
   // Initialize
   useEffect(() => {
@@ -44,8 +66,21 @@ export function ConversationalLearningAI() {
 
   // Auto-scroll
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, streamingText]);
+    if (autoScroll) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages, streamingText, autoScroll]);
+
+  useEffect(() => {
+    streamingTextRef.current = streamingText;
+  }, [streamingText]);
+
+  // Detect voice support lazily
+  useEffect(() => {
+    const hasSpeech = typeof window !== "undefined" && ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
+    const hasSynthesis = typeof window !== "undefined" && (window as any).speechSynthesis;
+    setVoiceSupported(Boolean(hasSpeech && hasSynthesis));
+  }, []);
 
   async function init() {
     if (!supabase) {
@@ -63,13 +98,9 @@ export function ConversationalLearningAI() {
 
     const uid = authData.user.id;
 
-    const { error: profileError } = await upsertProfile(supabase, uid, {
+    const { error: profileError } = await ensureProfileExists(supabase, uid, {
       username: authData.user.email?.split("@")[0] ?? null,
       full_name: authData.user.user_metadata?.full_name ?? null,
-      bio: null,
-      avatar_url: null,
-      theme: "default",
-      is_public: false,
     });
 
     if (profileError) {
@@ -86,6 +117,7 @@ export function ConversationalLearningAI() {
 
     setError(null);
     const trimmedText = text.trim();
+    setAutoScroll(true);
 
     // Mark welcome as done
     setShowWelcome(false);
@@ -101,6 +133,7 @@ export function ConversationalLearningAI() {
     // Show thinking
     setIsThinking(true);
     setStreamingText("");
+    stopRequestedRef.current = false;
 
     try {
       // Prepare context
@@ -145,24 +178,8 @@ export function ConversationalLearningAI() {
       const aiData = (await aiRes.json()) as { reply?: string };
       const aiReply = aiData.reply?.trim() || t("coachDefaultReply");
 
-      // Simulate typing effect for streaming
+      // Stream reply with ability to stop
       simulateTypingEffect(aiReply);
-
-      // Extract suggested questions from AI response (simple extraction)
-      const suggestedQuestions = extractSuggestedQuestions(aiReply);
-
-      // Add AI message after streaming completes
-      setTimeout(() => {
-        const aiMsg: LearningMessage = {
-          id: crypto.randomUUID(),
-          role: "assistant",
-          content: aiReply,
-          suggestedQuestions,
-        };
-        setMessages((prev) => [...prev, aiMsg]);
-        setIsThinking(false);
-        setStreamingText("");
-      }, aiReply.length * 20 + 200); // Wait for typing effect
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to get AI response");
       setIsThinking(false);
@@ -171,15 +188,60 @@ export function ConversationalLearningAI() {
   }
 
   function simulateTypingEffect(text: string) {
+    clearTypingInterval();
     let index = 0;
-    const typingInterval = setInterval(() => {
+    typingIntervalRef.current = setInterval(() => {
+      if (stopRequestedRef.current) {
+        clearTypingInterval();
+        setIsThinking(false);
+        setStreamingText("");
+        return;
+      }
+
       if (index < text.length) {
-        setStreamingText(text.slice(0, index + 1));
+        const next = text.slice(0, index + 1);
+        streamingTextRef.current = next;
+        setStreamingText(next);
         index++;
       } else {
-        clearInterval(typingInterval);
+        clearTypingInterval();
+        const suggestedQuestions = extractSuggestedQuestions(text);
+        const aiMsg: LearningMessage = {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: text,
+          suggestedQuestions,
+        };
+        setMessages((prev) => [...prev, aiMsg]);
+        setIsThinking(false);
+        setStreamingText("");
       }
-    }, 15); // Typing speed
+    }, 15);
+  }
+
+  function clearTypingInterval() {
+    if (typingIntervalRef.current) {
+      clearInterval(typingIntervalRef.current);
+      typingIntervalRef.current = null;
+    }
+  }
+
+  function stopStreaming() {
+    stopRequestedRef.current = true;
+    clearTypingInterval();
+    const partial = streamingTextRef.current.trim();
+    if (partial) {
+      const aiMsg: LearningMessage = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: partial,
+        suggestedQuestions: extractSuggestedQuestions(partial),
+      };
+      setMessages((prev) => [...prev, aiMsg]);
+    }
+    setIsThinking(false);
+    setStreamingText("");
+    setAutoScroll(false);
   }
 
   function extractSuggestedQuestions(text: string): string[] {
@@ -211,6 +273,13 @@ export function ConversationalLearningAI() {
     void onSendMessage(question);
   }
 
+  function handleNewSession() {
+    setMessages([]);
+    setStreamingText("");
+    setIsThinking(false);
+    setShowWelcome(true);
+  }
+
   if (loading) {
     return (
       <div className="flex h-full min-h-0 items-center justify-center bg-[#0d1117]">
@@ -232,42 +301,75 @@ export function ConversationalLearningAI() {
     );
   }
 
+  const streaming = isThinking || Boolean(streamingText);
+  const messageCount = messages.length;
+
   return (
-    <div className="flex h-full min-h-0 w-full overflow-hidden bg-[#0d1117]">
-      {/* Left Category Panel */}
-      <LearningCategoryPanel topic={topic} onTopicChange={setTopic} />
-
-      {/* Center Chat Area */}
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border-l border-white/5 bg-gradient-to-b from-[#0f1628] to-[#0a0f1e]">
-        {showWelcome && messages.length === 0 ? (
-          <LearningWelcomeState
-            topic={topic}
-            onSuggestedQuestion={onSendMessage}
-          />
-        ) : (
-          <LearningChatWindow
-            messages={messages}
-            streamingText={streamingText}
-            isThinking={isThinking}
-            messagesEndRef={messagesEndRef}
-            onSuggestedQuestion={onSuggestedQuestionClick}
-          />
-        )}
-
-        {/* Error Display */}
-        {error && messages.length > 0 && (
-          <div className="border-t border-white/5 bg-red-500/10 px-4 py-2">
-            <p className="text-xs text-red-400">{error}</p>
-          </div>
-        )}
-
-        {/* Input Bar */}
-        <LearningInputBar
-          topic={topic}
-          onSendMessage={onSendMessage}
-          isLoading={isThinking}
-        />
+    <div className="flex h-full min-h-0 w-full overflow-hidden bg-[#0d1117] text-[#e6edf3]">
+      {/* Sidebar stays always on (no collapse) */}
+      <div className="hidden md:block">
+        <LearningCategoryPanel topic={topic} onTopicChange={setTopic} />
       </div>
+
+      <div className="flex min-h-0 min-w-0 flex-1 justify-center">
+        <div className="flex min-h-0 min-w-0 flex-1 max-w-5xl flex-col overflow-hidden px-4 py-4 lg:px-6" style={{ fontSize: "13px" }}>
+          {/* No utility hamburger in this view */}
+          <div className="flex-1 overflow-auto bg-gradient-to-b from-[#0f1628] to-[#0a0f1e] rounded-xl border border-[#1f2730]">
+            <div className="h-full w-full overflow-auto px-4 py-4">
+              {showWelcome && messages.length === 0 ? (
+                <LearningWelcomeState
+                  topic={topic}
+                  onSuggestedQuestion={onSendMessage}
+                  variant="embedded"
+                />
+              ) : (
+                <LearningChatWindow
+                  messages={messages}
+                  streamingText={streamingText}
+                  isThinking={isThinking}
+                  messagesEndRef={messagesEndRef}
+                  onSuggestedQuestion={onSuggestedQuestionClick}
+                  onScroll={(e) => {
+                    const el = e.currentTarget;
+                    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+                    setAutoScroll(nearBottom);
+                  }}
+                />
+              )}
+            </div>
+          </div>
+
+          {error && messages.length > 0 && (
+            <div className="border border-[#1f2730] bg-red-500/10 px-4 py-2 text-[12px] mt-3 rounded-md">
+              <p className="text-red-400">{error}</p>
+            </div>
+          )}
+
+          <LearningInputBar
+            topic={topic}
+            onSendMessage={onSendMessage}
+            isLoading={isThinking}
+            isStreaming={streaming}
+            onStopStreaming={stopStreaming}
+            onMicClick={() => setShowVoice(true)}
+            voiceAvailable={voiceSupported}
+            micActive={showVoice}
+            onTopicChange={setTopic}
+          />
+        </div>
+      </div>
+
+      {showVoice && (
+        <div className="fixed bottom-20 right-6 z-40 w-[360px] max-h-[70vh] overflow-hidden rounded-2xl border border-[#30363d] bg-[#0f1624] shadow-2xl">
+          <div className="flex items-center justify-between border-b border-[#1f2730] px-3 py-2 text-[12px] text-[#c9d1d9]">
+            <span>Voice mode (beta)</span>
+            <button onClick={() => setShowVoice(false)} className="text-[#8b949e] hover:text-white">✕</button>
+          </div>
+          <div className="max-h-[65vh] overflow-y-auto p-2">
+            <VoiceConversation mode="hr" />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

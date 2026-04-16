@@ -3,14 +3,24 @@ import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 import { useI18n } from "@/components/providers/I18nProvider";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
-import { LogOut, Zap } from "lucide-react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { LogOut } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+
+function getActiveDashboardLabel(pathname: string, t: (key: string) => string) {
+  if (pathname.startsWith("/dashboard/profile")) return t("profile");
+  if (pathname.startsWith("/dashboard/jobs")) return t("jobs");
+  if (pathname.startsWith("/dashboard/ai")) return t("aiCareerCoach");
+  if (pathname.startsWith("/dashboard/tasks")) return t("tasks");
+  if (pathname.startsWith("/dashboard/notifications")) return t("notifications");
+  return t("home");
+}
 
 export function Topbar() {
   const { t } = useI18n();
   const supabase = useSupabase();
   const router = useRouter();
+  const pathname = usePathname();
+  const activeLabel = getActiveDashboardLabel(pathname, t);
 
   async function onSignOut() {
     if (!supabase) return;
@@ -19,11 +29,11 @@ export function Topbar() {
   }
 
   return (
-    <header className="fixed top-0 right-0 left-56 h-16 flex items-center justify-between px-8 border-b border-border/30 bg-background/80 backdrop-blur-xl z-30 shadow-sm">
+    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border/30 bg-background/80 px-4 md:px-8 shadow-sm backdrop-blur-xl">
       {/* Left Section - Active Page Info */}
       <div className="flex items-center gap-3">
         <div className="w-2 h-2 rounded-full bg-gradient-to-r from-primary to-accent animate-pulse"></div>
-        <span className="text-sm font-medium text-muted-foreground">Active Session</span>
+        <span className="text-sm font-medium text-muted-foreground">Dashboard / {activeLabel}</span>
       </div>
 
       {/* Right Section - Controls */}

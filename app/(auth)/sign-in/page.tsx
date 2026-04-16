@@ -9,6 +9,7 @@ import * as THREE from "three";
 declare global {
   interface Window {
     THREE?: typeof THREE;
+    Cypress?: unknown;
   }
 }
 
@@ -35,38 +36,48 @@ export default function SignInPage() {
   useEffect(() => {
     let mounted = true;
 
+    if (window.Cypress) {
+      return () => {
+        mounted = false;
+      };
+    }
+
     async function initVanta() {
       if (!vantaRef.current || haloEffectRef.current) {
         return;
       }
 
-      window.THREE = THREE;
-      const { default: BIRDS } = await import("vanta/dist/vanta.birds.min");
+      try {
+        window.THREE = THREE;
+        const { default: BIRDS } = await import("vanta/dist/vanta.birds.min");
 
-      if (!mounted || !vantaRef.current || haloEffectRef.current) {
-        return;
+        if (!mounted || !vantaRef.current || haloEffectRef.current) {
+          return;
+        }
+
+        haloEffectRef.current = BIRDS({
+          el: vantaRef.current,
+          mouseControls: true,
+          touchControls: true,
+          gyroControls: false,
+          minHeight: 200,
+          minWidth: 200,
+          backgroundColor: 0x020617,
+          color1: 0x60a5fa,
+          color2: 0xa855f7,
+          birdSize: 1.1,
+          wingSpan: 18,
+          speedLimit: 3,
+          separation: 32,
+          alignment: 28,
+          cohesion: 30,
+          quantity: 6,
+          scale: 1,
+          scaleMobile: 1,
+        });
+      } catch {
+        // Keep sign-in usable when WebGL effects fail to initialize.
       }
-
-      haloEffectRef.current = BIRDS({
-        el: vantaRef.current,
-        mouseControls: true,
-        touchControls: true,
-        gyroControls: false,
-        minHeight: 200,
-        minWidth: 200,
-        backgroundColor: 0x020617,
-        color1: 0x60a5fa,
-        color2: 0xa855f7,
-        birdSize: 1.1,
-        wingSpan: 18,
-        speedLimit: 3,
-        separation: 32,
-        alignment: 28,
-        cohesion: 30,
-        quantity: 6,
-        scale: 1,
-        scaleMobile: 1,
-      });
     }
 
     initVanta();

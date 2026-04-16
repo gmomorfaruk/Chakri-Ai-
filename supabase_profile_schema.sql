@@ -90,3 +90,52 @@ create policy "Users can manage their own skills" on skills for all using (auth.
 create policy "Users can manage their own projects" on projects for all using (auth.uid() = user_id);
 create policy "Users can manage their own experiences" on experiences for all using (auth.uid() = user_id);
 create policy "Users can manage their own documents" on documents for all using (auth.uid() = user_id);
+
+-- Public portfolio read policies (for /u/{username})
+-- Safe to run repeatedly.
+drop policy if exists "Public can view enabled profiles" on profiles;
+drop policy if exists "Public can view educations for enabled profiles" on educations;
+drop policy if exists "Public can view skills for enabled profiles" on skills;
+drop policy if exists "Public can view projects for enabled profiles" on projects;
+drop policy if exists "Public can view experiences for enabled profiles" on experiences;
+drop policy if exists "Public can view documents for enabled profiles" on documents;
+
+create policy "Public can view enabled profiles"
+on profiles
+for select
+using (is_public = true);
+
+create policy "Public can view educations for enabled profiles"
+on educations
+for select
+using (exists (
+  select 1 from profiles p where p.id = educations.user_id and p.is_public = true
+));
+
+create policy "Public can view skills for enabled profiles"
+on skills
+for select
+using (exists (
+  select 1 from profiles p where p.id = skills.user_id and p.is_public = true
+));
+
+create policy "Public can view projects for enabled profiles"
+on projects
+for select
+using (exists (
+  select 1 from profiles p where p.id = projects.user_id and p.is_public = true
+));
+
+create policy "Public can view experiences for enabled profiles"
+on experiences
+for select
+using (exists (
+  select 1 from profiles p where p.id = experiences.user_id and p.is_public = true
+));
+
+create policy "Public can view documents for enabled profiles"
+on documents
+for select
+using (exists (
+  select 1 from profiles p where p.id = documents.user_id and p.is_public = true
+));

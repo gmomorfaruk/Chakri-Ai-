@@ -2,47 +2,47 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { ArrowRight, Bot, Briefcase, Eye, Mic, Rocket, Target, Trophy } from "lucide-react";
+import { ArrowRight, Bell, Bot, Briefcase, Eye, ListTodo, Rocket, User } from "lucide-react";
 
 const features = [
   {
-    title: "AI Coach",
-    body: "Practice interview answers, refine strategy, and get guided role-specific preparation.",
-    cta: "Try AI Coach",
-    href: "/ai-coach",
-    icon: Bot,
-    color: "from-blue-500 to-cyan-400",
+    title: "Profile",
+    body: "Build your professional identity with skills, experience, projects, and public portfolio settings.",
+    cta: "Open Profile",
+    href: "/dashboard/profile",
+    icon: User,
+    color: "from-cyan-500 to-blue-500",
   },
   {
-    title: "Job Matching",
-    body: "See where your skills fit fastest with practical scoring and cleaner discovery.",
-    cta: "Explore Job Matching",
-    href: "/jobs/matching",
-    icon: Target,
-    color: "from-purple-500 to-indigo-400",
-  },
-  {
-    title: "Voice Viva",
-    body: "Move from silent preparation to live spoken practice with active simulation.",
-    cta: "Start Voice Viva",
-    href: "/ai-coach/viva",
-    icon: Mic,
-    color: "from-fuchsia-500 to-pink-400",
-  },
-  {
-    title: "Job Tracker",
-    body: "Keep applications, follow-up dates, and status changes visible and structured.",
-    cta: "Open Job Tracker",
-    href: "/jobs/tracker",
+    title: "Jobs",
+    body: "Manage your full opportunity pipeline from hub, tracker, matching, and result views in one place.",
+    cta: "Open Jobs",
+    href: "/dashboard/jobs",
     icon: Briefcase,
+    color: "from-blue-500 to-indigo-400",
+  },
+  {
+    title: "AI Career Coach",
+    body: "Practice interviews, switch coaching modes, and train with conversational and voice guidance.",
+    cta: "Open AI Coach",
+    href: "/dashboard/ai",
+    icon: Bot,
+    color: "from-purple-500 to-fuchsia-400",
+  },
+  {
+    title: "Tasks",
+    body: "Create practical roadmaps, prioritize task execution, and monitor completion momentum.",
+    cta: "Open Tasks",
+    href: "/dashboard/tasks",
+    icon: ListTodo,
     color: "from-emerald-500 to-teal-400",
   },
   {
-    title: "Portfolio",
-    body: "Show your experience, projects, and profile presence in a way employers can review quickly.",
-    cta: "View Portfolio",
-    href: "/profile/portfolio",
-    icon: Trophy,
+    title: "Notifications",
+    body: "Track alerts, activity logs, and updates so nothing important gets missed.",
+    cta: "Open Notifications",
+    href: "/dashboard/notifications",
+    icon: Bell,
     color: "from-amber-500 to-orange-400",
   },
 ];
@@ -83,7 +83,7 @@ export default function DashboardHome() {
         <section className="relative">
           <div className="mb-16 text-center">
             <h2 className="text-3xl font-bold tracking-tight text-white md:text-4xl">Core Features</h2>
-            <p className="mt-4 text-slate-400">The Dragon Path to your structured journey.</p>
+            <p className="mt-4 text-slate-400">Professional tab flow for daily execution.</p>
           </div>
 
           <div className="absolute bottom-0 left-1/2 top-20 hidden w-[2px] -translate-x-1/2 bg-gradient-to-b from-blue-500 via-purple-500 to-transparent opacity-30 md:block" />

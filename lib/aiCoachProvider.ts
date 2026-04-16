@@ -13,6 +13,27 @@ export type CoachReplyRequest = {
   focus?: string;
 };
 
+const AI_HTTP_TIMEOUT_MS = Number(process.env.AI_HTTP_TIMEOUT_MS || "20000");
+
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = AI_HTTP_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(url, {
+      ...init,
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error(`AI provider request timed out after ${timeoutMs}ms`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 function systemPrompt(mode: CoachMode, assistantType: "interview" | "learning" = "interview", focus?: string) {
   if (assistantType === "learning") {
     const focusLine = focus ? `Primary focus area: ${focus}.` : "";
@@ -43,7 +64,7 @@ async function geminiReply(input: CoachReplyRequest) {
 
   const model = process.env.GEMINI_MODEL || "gemini-2.0-flash";
 
-  const response = await fetch(
+  const response = await fetchWithTimeout(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`,
     {
       method: "POST",
@@ -68,7 +89,8 @@ async function geminiReply(input: CoachReplyRequest) {
           },
         ],
       }),
-    }
+    },
+    AI_HTTP_TIMEOUT_MS
   );
 
   if (!response.ok) {
@@ -94,7 +116,7 @@ async function openAiReply(input: CoachReplyRequest) {
 
   const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
 
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+  const response = await fetchWithTimeout("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -109,7 +131,7 @@ async function openAiReply(input: CoachReplyRequest) {
         { role: "user", content: input.message },
       ],
     }),
-  });
+  }, AI_HTTP_TIMEOUT_MS);
 
   if (!response.ok) {
     const raw = await response.text();
@@ -129,7 +151,7 @@ async function huggingFaceReply(input: CoachReplyRequest) {
 
   const model = process.env.HUGGINGFACE_MODEL || "Qwen/Qwen2.5-7B-Instruct";
 
-  const response = await fetch("https://router.huggingface.co/v1/chat/completions", {
+  const response = await fetchWithTimeout("https://router.huggingface.co/v1/chat/completions", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -144,7 +166,7 @@ async function huggingFaceReply(input: CoachReplyRequest) {
         { role: "user", content: input.message },
       ],
     }),
-  });
+  }, AI_HTTP_TIMEOUT_MS);
 
   if (!response.ok) {
     const raw = await response.text();

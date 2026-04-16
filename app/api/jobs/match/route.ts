@@ -14,7 +14,6 @@ import {
   upsertJobMatch,
   getUserJobMatches,
 } from "@/lib/jobsService";
-import { Job } from "@/types/jobs";
 
 // Helper to verify bearer token and get user
 async function getUserFromToken(supabase: any, req: Request) {
@@ -65,7 +64,8 @@ export async function POST(req: Request) {
     const userSkills = Array.isArray(userProfile.skills) ? userProfile.skills : [];
 
     // Step 3: Fetch all approved jobs
-    let { data: jobs, error: jobsError } = await getApprovedJobs(supabase);
+    const { data: approvedJobs, error: jobsError } = await getApprovedJobs(supabase);
+    let jobs = approvedJobs;
     if (jobsError) {
       return NextResponse.json({ error: "Failed to fetch jobs" }, { status: 500 });
     }
@@ -109,7 +109,7 @@ export async function POST(req: Request) {
         job
       );
 
-      // Only store matches above 0 (no relevance threshold needed)
+      // Persist match when possible, but still return computed result even if storage fails.
       const { error: insertError } = await upsertJobMatch(supabase, userId, job.id, {
         skill_score: matchScore.skill_score,
         role_score: matchScore.role_score,
@@ -120,23 +120,23 @@ export async function POST(req: Request) {
         missing_skills: matchScore.missing_skills,
       });
 
-      if (!insertError) {
-        matchResults.push({
-          job_id: job.id,
-          title: job.title,
-          company: job.company,
-          location: job.location,
-          score: scoreToPercentage(matchScore.total_score),
-          skill_score: scoreToPercentage(matchScore.skill_score),
-          role_score: scoreToPercentage(matchScore.role_score),
-          location_score: scoreToPercentage(matchScore.location_score),
-          experience_score: scoreToPercentage(matchScore.experience_score),
-          matched_skills: matchScore.matched_skills,
-          missing_skills: matchScore.missing_skills,
-        });
-      } else {
+      if (insertError) {
         console.error("upsertJobMatch error:", insertError);
       }
+
+      matchResults.push({
+        job_id: job.id,
+        title: job.title,
+        company: job.company,
+        location: job.location,
+        score: scoreToPercentage(matchScore.total_score),
+        skill_score: scoreToPercentage(matchScore.skill_score),
+        role_score: scoreToPercentage(matchScore.role_score),
+        location_score: scoreToPercentage(matchScore.location_score),
+        experience_score: scoreToPercentage(matchScore.experience_score),
+        matched_skills: matchScore.matched_skills,
+        missing_skills: matchScore.missing_skills,
+      });
     }
 
     // Step 6: Sort by score and return top 10
@@ -193,13 +193,16 @@ export async function GET(req: Request) {
     const formattedMatches = (matches ?? []).map((match: any) => ({
       id: match.id,
       job_id: match.job_id,
+      title: match.jobs?.title ?? null,
+      company: match.jobs?.company ?? null,
+      location: match.jobs?.location ?? null,
       score: scoreToPercentage(match.total_score),
       skill_score: scoreToPercentage(match.skill_score),
       role_score: scoreToPercentage(match.role_score),
       location_score: scoreToPercentage(match.location_score),
       experience_score: scoreToPercentage(match.experience_score),
-      matched_skills: match.matched_skills,
-      missing_skills: match.missing_skills,
+      matched_skills: Array.isArray(match.matched_skills) ? match.matched_skills : [],
+      missing_skills: Array.isArray(match.missing_skills) ? match.missing_skills : [],
       job: match.jobs
         ? {
             id: match.jobs.id,

@@ -2,7 +2,7 @@
 
 import { useI18n } from "@/components/providers/I18nProvider";
 import { Mic, Send } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 
 interface ChatInputBarProps {
   onSendMessage: (message: string) => Promise<void>;

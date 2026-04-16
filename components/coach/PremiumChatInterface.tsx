@@ -13,7 +13,7 @@ import {
   getLatestCoachEvaluation,
   localEvaluateAnswer,
 } from "@/lib/coachService";
-import { upsertProfile } from "@/lib/profileService";
+import { ensureProfileExists } from "@/lib/profileService";
 import { CoachEvaluation, CoachMessage, CoachMode, CoachSession } from "@/types/coach";
 import { ChatWindow } from "./ChatWindow";
 import { ChatInputBar } from "./ChatInputBar";
@@ -68,13 +68,9 @@ export function PremiumChatInterface() {
 
     const uid = authData.user.id;
 
-    const { error: profileError } = await upsertProfile(supabase, uid, {
+    const { error: profileError } = await ensureProfileExists(supabase, uid, {
       username: authData.user.email?.split("@")[0] ?? null,
       full_name: authData.user.user_metadata?.full_name ?? null,
-      bio: null,
-      avatar_url: null,
-      theme: "default",
-      is_public: false,
     });
 
     if (profileError) {
@@ -274,7 +270,7 @@ export function PremiumChatInterface() {
       />
 
       {/* Center - Chat */}
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border-l border-white/5 bg-gradient-to-b from-[#0f1628] to-[#0a0f1e]">
+      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden border-l border-white/5 bg-gradient-to-b from-[#0f1628] to-[#0a0f1e]">
         {/* Chat Messages */}
         <ChatWindow
           messages={messages}
