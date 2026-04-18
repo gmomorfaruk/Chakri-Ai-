@@ -37,7 +37,7 @@ export function SessionsSidebar({
   };
 
   return (
-    <div className="hidden h-full min-h-0 w-64 flex-shrink-0 flex-col overflow-hidden border-r border-white/5 bg-gradient-to-b from-[#0f1628] to-[#0a0f1e] shadow-2xl md:flex">
+    <aside className="hidden h-full min-h-0 w-64 flex-shrink-0 flex-col overflow-hidden border-r border-white/5 bg-gradient-to-b from-[#0f1628] to-[#0a0f1e] shadow-2xl md:flex">
       {/* Header */}
       <div className="border-b border-white/5 px-4 py-6">
         <h1 className="bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-lg font-bold text-transparent">
@@ -91,7 +91,7 @@ export function SessionsSidebar({
       <div className="mx-3 my-2 h-px bg-white/5" />
 
       {/* Sessions Section */}
-      <div className="flex-1 overflow-hidden px-3 py-3 min-h-0">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-3 py-3">
         <button
           onClick={() => setIsSessionsOpen(!isSessionsOpen)}
           className="flex w-full items-center justify-between text-xs font-semibold uppercase text-gray-400 transition-colors hover:text-gray-200 mb-2"
@@ -101,7 +101,7 @@ export function SessionsSidebar({
         </button>
 
         {isSessionsOpen && (
-          <div className="max-h-full space-y-1.5 overflow-y-auto">
+          <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-1">
             {sessions.length === 0 ? (
               <p className="text-xs text-gray-500 italic py-2">{t("emptySessions") || "No sessions yet"}</p>
             ) : (
@@ -128,6 +128,6 @@ export function SessionsSidebar({
       <div className="border-t border-white/5 px-3 py-3 text-xs text-gray-500">
         <p>{mode === "technical" ? "🧠 Technical" : mode === "behavioral" ? "💬 Behavioral" : "👔 HR"}</p>
       </div>
-    </div>
+    </aside>
   );
 }

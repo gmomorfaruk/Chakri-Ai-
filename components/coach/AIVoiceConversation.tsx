@@ -162,10 +162,10 @@ export function AIVoiceConversation({ mode }: { mode: CoachMode }) {
           }),
         });
 
-        if (!res.ok) throw new Error("Failed to get response");
+        if (!res.ok) throw new Error(t("voiceFailedResponse"));
 
         const data = (await res.json()) as { reply?: string };
-        const reply = data.reply?.trim() || "I didn't understand that. Could you repeat?";
+        const reply = data.reply?.trim() || t("voiceCouldNotUnderstand");
 
         // Add AI message to transcript
         setMessages((prev) => [
@@ -188,7 +188,7 @@ export function AIVoiceConversation({ mode }: { mode: CoachMode }) {
         isProcessingRef.current = false;
       }
     },
-    [messages, mode]
+    [messages, mode, t]
   );
 
   // Text to speech

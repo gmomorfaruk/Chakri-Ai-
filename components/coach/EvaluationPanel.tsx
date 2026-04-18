@@ -13,7 +13,7 @@ export function EvaluationPanel({ evaluation }: EvaluationPanelProps) {
   const { t } = useI18n();
 
   return (
-    <div className="hidden h-full min-h-0 w-72 flex-shrink-0 flex-col overflow-hidden border-l border-white/5 bg-gradient-to-b from-[#0f1628] to-[#0a0f1e] shadow-2xl lg:flex">
+    <aside className="hidden h-full min-h-0 w-72 flex-shrink-0 flex-col overflow-hidden border-l border-white/5 bg-gradient-to-b from-[#0f1628] to-[#0a0f1e] shadow-2xl lg:flex">
       {/* Header */}
       <div className="border-b border-white/5 px-4 py-6">
         <h2 className="bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-lg font-bold text-transparent">
@@ -22,7 +22,7 @@ export function EvaluationPanel({ evaluation }: EvaluationPanelProps) {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto px-4 py-6">
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6">
         {!evaluation ? (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
@@ -52,7 +52,7 @@ export function EvaluationPanel({ evaluation }: EvaluationPanelProps) {
                   value={evaluation.answer_clarity_score}
                   label={t("clarity") || "Clarity"}
                   color="blue"
-                  size="sm"
+                  size="md"
                 />
               </motion.div>
 
@@ -65,7 +65,7 @@ export function EvaluationPanel({ evaluation }: EvaluationPanelProps) {
                   value={evaluation.confidence_score}
                   label={t("confidence") || "Confidence"}
                   color="purple"
-                  size="sm"
+                  size="md"
                 />
               </motion.div>
 
@@ -78,7 +78,7 @@ export function EvaluationPanel({ evaluation }: EvaluationPanelProps) {
                   value={evaluation.relevance_score}
                   label={t("relevance") || "Relevance"}
                   color="cyan"
-                  size="sm"
+                  size="md"
                 />
               </motion.div>
             </div>
@@ -135,6 +135,6 @@ export function EvaluationPanel({ evaluation }: EvaluationPanelProps) {
           </motion.div>
         )}
       </div>
-    </div>
+    </aside>
   );
 }

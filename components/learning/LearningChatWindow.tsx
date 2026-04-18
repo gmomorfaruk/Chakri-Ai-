@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { useI18n } from "@/components/providers/I18nProvider";
 import { MarkdownRenderer } from "./MarkdownRenderer";
 
 interface LearningChatWindowProps {
@@ -25,12 +26,13 @@ export function LearningChatWindow({
   onSuggestedQuestion,
   onScroll,
 }: LearningChatWindowProps) {
+  const { t } = useI18n();
   return (
     <div
       className="min-h-0 flex-1 overflow-y-auto bg-gradient-to-b from-[#0d1117] to-[#0a0f1e] px-4 py-6 sm:px-6 lg:px-8"
       onScroll={onScroll}
     >
-      <div className="mx-auto max-w-3xl space-y-4">
+      <div className="mx-auto w-full max-w-none space-y-4">
         {/* Messages */}
         {messages.map((message, idx) => (
           <MessageBubble
@@ -80,7 +82,7 @@ export function LearningChatWindow({
                   transition={{ duration: 0.6, repeat: Infinity, delay: 0.2 }}
                 />
               </div>
-              <p className="text-xs text-gray-500">AI is thinking...</p>
+              <p className="text-xs text-gray-500">{t("aiIsThinking")}</p>
             </div>
           </motion.div>
         )}
@@ -122,7 +124,7 @@ function MessageBubble({
       className={`flex ${isUser ? "justify-end" : "justify-start"}`}
     >
       <div
-        className={`flex max-w-2xl gap-3 ${
+        className={`flex w-full max-w-4xl gap-3 ${
           isUser ? "flex-row-reverse" : "flex-row"
         }`}
       >

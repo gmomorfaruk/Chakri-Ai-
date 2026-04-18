@@ -5,6 +5,12 @@ type QuizRequestBody = {
   topic?: string;
   sourceText?: string;
   questionCount?: number;
+  adaptiveContext?: {
+    weakTopics?: Array<{ topic?: string; accuracy?: number; attempts?: number }>;
+    strongTopics?: Array<{ topic?: string; accuracy?: number; attempts?: number }>;
+    focusConcepts?: string[];
+    targetDifficulty?: "easy" | "medium" | "hard";
+  };
 };
 
 type ModelOptionMap = {
@@ -280,16 +286,65 @@ function fallbackQuiz(topic: string, sourceText: string, questionCount: number):
   };
 }
 
-function buildQuizPrompt(topic: string, sourceText: string, questionCount: number) {
+function buildQuizPrompt(
+  topic: string,
+  sourceText: string,
+  questionCount: number,
+  adaptiveContext?: QuizRequestBody["adaptiveContext"]
+) {
   const hasSource = sourceText.trim().length > 0;
   const modeLine = hasSource
     ? "Mode: Content-based generation. Use ONLY the provided content. Do not add outside assumptions."
     : "Mode: Topic-based generation. Use conceptual and exam-relevant general knowledge.";
 
+  const targetDifficulty = adaptiveContext?.targetDifficulty;
   const difficultyPlan =
-    questionCount >= 6
-      ? `Difficulty mix target: Easy ${Math.max(1, Math.round(questionCount * 0.3))}, Medium ${Math.max(2, Math.round(questionCount * 0.5))}, Hard ${Math.max(1, questionCount - Math.round(questionCount * 0.3) - Math.round(questionCount * 0.5))}.`
-      : "Difficulty mix target: include easy, medium, and hard questions as possible.";
+    targetDifficulty === "hard"
+      ? `Difficulty mix target: Easy ${Math.max(1, Math.round(questionCount * 0.15))}, Medium ${Math.max(2, Math.round(questionCount * 0.35))}, Hard ${Math.max(1, questionCount - Math.round(questionCount * 0.15) - Math.round(questionCount * 0.35))}.`
+      : targetDifficulty === "easy"
+        ? `Difficulty mix target: Easy ${Math.max(1, Math.round(questionCount * 0.5))}, Medium ${Math.max(2, Math.round(questionCount * 0.35))}, Hard ${Math.max(1, questionCount - Math.round(questionCount * 0.5) - Math.round(questionCount * 0.35))}.`
+        : questionCount >= 6
+          ? `Difficulty mix target: Easy ${Math.max(1, Math.round(questionCount * 0.3))}, Medium ${Math.max(2, Math.round(questionCount * 0.5))}, Hard ${Math.max(1, questionCount - Math.round(questionCount * 0.3) - Math.round(questionCount * 0.5))}.`
+          : "Difficulty mix target: include easy, medium, and hard questions as possible.";
+
+  const weakTopics = (adaptiveContext?.weakTopics ?? [])
+    .filter((item) => typeof item.topic === "string" && item.topic.trim().length > 0)
+    .slice(0, 4)
+    .map((item) => {
+      const accuracy = typeof item.accuracy === "number" ? `${Math.round(item.accuracy)}%` : "n/a";
+      const attempts = typeof item.attempts === "number" ? `${item.attempts}` : "0";
+      return `${item.topic?.trim()} (accuracy: ${accuracy}, attempts: ${attempts})`;
+    });
+
+  const strongTopics = (adaptiveContext?.strongTopics ?? [])
+    .filter((item) => typeof item.topic === "string" && item.topic.trim().length > 0)
+    .slice(0, 3)
+    .map((item) => {
+      const accuracy = typeof item.accuracy === "number" ? `${Math.round(item.accuracy)}%` : "n/a";
+      return `${item.topic?.trim()} (${accuracy})`;
+    });
+
+  const focusConcepts = (adaptiveContext?.focusConcepts ?? [])
+    .filter((item) => typeof item === "string" && item.trim().length > 0)
+    .slice(0, 8);
+
+  const adaptiveLines =
+    weakTopics.length || strongTopics.length || focusConcepts.length || targetDifficulty
+      ? [
+          "Adaptive personalization instructions:",
+          weakTopics.length
+            ? `- Prioritize weak areas by generating more questions from: ${weakTopics.join(", ")}.`
+            : "- No weak topic list provided.",
+          strongTopics.length
+            ? `- Reduce over-representation of strong topics: ${strongTopics.join(", ")}.`
+            : "- No strong topic list provided.",
+          focusConcepts.length
+            ? `- Focus concepts frequently answered incorrectly: ${focusConcepts.join(", ")}.`
+            : "- No specific weak concepts provided.",
+          targetDifficulty ? `- Global difficulty preference: ${targetDifficulty}.` : "- Global difficulty preference: balanced.",
+          "- Keep all questions relevant to requested topic/content.",
+        ].join("\n")
+      : "Adaptive personalization instructions: default balanced generation.";
 
   const contentBlock = hasSource
     ? `Provided content:\n"""\n${sourceText.trim().slice(0, 10000)}\n"""`
@@ -306,6 +361,7 @@ function buildQuizPrompt(topic: string, sourceText: string, questionCount: numbe
     "- Avoid ambiguous wording.",
     "- Keep language simple and exam-focused.",
     "- Keep explanation to 1-2 lines.",
+    adaptiveLines,
     "STRICT OUTPUT: Return only valid JSON in this exact schema:",
     '{"quiz_title":"string","topic":"string","questions":[{"question":"string","options":{"A":"string","B":"string","C":"string","D":"string"},"correct_answer":"A","explanation":"string"}]}',
     `Requested topic: ${topic || "Derived from provided content"}`,
@@ -347,13 +403,14 @@ export async function POST(req: Request) {
     const body = (await req.json()) as QuizRequestBody;
     const topic = (body.topic || "").trim();
     const sourceText = (body.sourceText || "").trim();
-    const questionCount = Math.max(3, Math.min(15, Math.floor(body.questionCount ?? 8)));
+    const questionCount = Math.max(3, Math.min(100, Math.floor(body.questionCount ?? 8)));
+    const adaptiveContext = body.adaptiveContext;
 
     if (!topic && !sourceText) {
       return NextResponse.json({ error: "Topic or source content is required." }, { status: 400 });
     }
 
-    const prompt = buildQuizPrompt(topic, sourceText, questionCount);
+    const prompt = buildQuizPrompt(topic, sourceText, questionCount, adaptiveContext);
     let parsed: QuizPayload | null = null;
 
     try {

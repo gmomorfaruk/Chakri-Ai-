@@ -46,11 +46,13 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.className} ${manrope.variable}`} suppressHydrationWarning>
+      <body className={`${inter.className} ${manrope.variable} bg-background text-foreground`} suppressHydrationWarning>
         <ThemeProvider>
           <I18nProvider>
             <SupabaseProvider>
-              {children}
+              <div className="app-root">
+                {children}
+              </div>
             </SupabaseProvider>
           </I18nProvider>
         </ThemeProvider>

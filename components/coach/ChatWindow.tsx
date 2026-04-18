@@ -10,6 +10,7 @@ interface ChatWindowProps {
   isThinking: boolean;
   messagesEndRef: React.RefObject<HTMLDivElement | null>;
   mode: CoachMode;
+  onQuickPrompt?: (prompt: string) => void;
 }
 
 export function ChatWindow({
@@ -18,8 +19,47 @@ export function ChatWindow({
   isThinking,
   messagesEndRef,
   mode,
+  onQuickPrompt,
 }: ChatWindowProps) {
   const { t } = useI18n();
+
+  const visibleMessages = messages.filter((message, index, all) => {
+    if (index === 0) return true;
+
+    const previous = all[index - 1];
+    if (!previous) return true;
+
+    if (message.role !== "assistant" || previous.role !== "assistant") {
+      return true;
+    }
+
+    const sameContent = message.content.trim() === previous.content.trim();
+    const previousTs = Date.parse(previous.created_at || "");
+    const currentTs = Date.parse(message.created_at || "");
+    const gapMs = Math.abs(currentTs - previousTs);
+    const closeInTime = Number.isFinite(gapMs) && gapMs < 12000;
+
+    return !(sameContent && closeInTime);
+  });
+
+  const quickPrompts =
+    mode === "technical"
+      ? [
+          "Ask me one backend debugging question.",
+          "Give me a concise system design interview question.",
+          "Evaluate this answer using STAR and one improvement point.",
+        ]
+      : mode === "behavioral"
+        ? [
+            "Ask a teamwork conflict interview question.",
+            "Give me one leadership scenario question.",
+            "Review my answer and give two specific improvements.",
+          ]
+        : [
+            "Ask me one HR interview question.",
+            "Review my answer in 3 to 5 short lines.",
+            "Give me one follow-up question for practice.",
+          ];
 
   const getModeLabel = (m: CoachMode) => {
     switch (m) {
@@ -43,11 +83,23 @@ export function ChatWindow({
               {mode === "technical" ? t("technicalModeDescription") || "Ask technical interview questions and get expert coaching." : mode === "behavioral" ? t("behavioralModeDescription") || "Practice answering behavioral questions with targeted feedback." : t("hrModeDescription") || "Get HR interview preparation guidance from an expert coach."}
             </p>
             <p className="text-xs text-muted-foreground/60">{t("startTypingToBegin") || "Start typing to begin your coaching session"}</p>
+            <div className="grid w-full max-w-xl gap-2 sm:grid-cols-3">
+              {quickPrompts.map((prompt) => (
+                <button
+                  key={prompt}
+                  type="button"
+                  onClick={() => onQuickPrompt?.(prompt)}
+                  className="ui-transition-soft rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-left text-xs text-slate-200 hover:border-cyan-300/40 hover:bg-cyan-500/10"
+                >
+                  {prompt}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
         {/* Messages */}
-        {messages.map((message, idx) => (
+        {visibleMessages.map((message, idx) => (
           <MessageBubble key={message.id} message={message} index={idx} />
         ))}
 
@@ -62,7 +114,7 @@ export function ChatWindow({
               content: streamingText,
               created_at: new Date().toISOString(),
             }}
-            index={messages.length}
+            index={visibleMessages.length}
             isStreaming
           />
         )}
@@ -96,6 +148,8 @@ interface MessageBubbleProps {
 
 function MessageBubble({ message, index, isStreaming }: MessageBubbleProps) {
   const isUser = message.role === "user";
+  const lines = message.content.split("\n").map((line) => line.trim()).filter(Boolean);
+  const showStructuredAssistant = !isUser && lines.length > 1;
 
   return (
     <motion.div
@@ -125,7 +179,23 @@ function MessageBubble({ message, index, isStreaming }: MessageBubbleProps) {
                 : "rounded-bl-none border border-white/10 bg-white/5 text-gray-100 shadow-purple-500/10"
             }`}
           >
-            <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">{message.content}</p>
+            {showStructuredAssistant ? (
+              <div className="space-y-1.5 text-sm leading-relaxed">
+                {lines.map((line, lineIdx) => {
+                  const isHeading = /^feedback:|^improve:|^next:/i.test(line);
+                  return (
+                    <p
+                      key={`${message.id}-${lineIdx}`}
+                      className={`whitespace-pre-wrap break-words ${isHeading ? "font-semibold text-cyan-200" : "text-slate-100"}`}
+                    >
+                      {line}
+                    </p>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">{message.content}</p>
+            )}
           </div>
         </div>
       </div>

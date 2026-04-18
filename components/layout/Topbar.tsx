@@ -3,7 +3,7 @@ import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 import { useI18n } from "@/components/providers/I18nProvider";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
-import { LogOut } from "lucide-react";
+import { LogOut, PanelLeft, Rows3 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 
 function getActiveDashboardLabel(pathname: string, t: (key: string) => string) {
@@ -15,7 +15,13 @@ function getActiveDashboardLabel(pathname: string, t: (key: string) => string) {
   return t("home");
 }
 
-export function Topbar() {
+type TopbarProps = {
+  navMode?: "sidebar" | "navbar";
+  onToggleNavMode?: () => void;
+  showControls?: boolean;
+};
+
+export function Topbar({ navMode = "sidebar", onToggleNavMode, showControls = true }: TopbarProps) {
   const { t } = useI18n();
   const supabase = useSupabase();
   const router = useRouter();
@@ -29,49 +35,53 @@ export function Topbar() {
   }
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border/30 bg-background/80 px-4 md:px-8 shadow-sm backdrop-blur-xl">
+    <header className="sticky top-0 z-30 flex h-16 min-w-0 items-center justify-between border-b border-white/10 bg-[rgba(8,12,20,0.72)] px-3 sm:px-4 md:px-8 backdrop-blur-xl">
       {/* Left Section - Active Page Info */}
-      <div className="flex items-center gap-3">
-        <div className="w-2 h-2 rounded-full bg-gradient-to-r from-primary to-accent animate-pulse"></div>
-        <span className="text-sm font-medium text-muted-foreground">Dashboard / {activeLabel}</span>
+      <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+        <div className="h-2 w-2 rounded-full bg-gradient-to-r from-primary to-accent animate-pulse" />
+        <span className="truncate text-xs font-medium text-muted-foreground sm:text-sm">
+          <span className="hidden sm:inline">{t("dashboard")} / </span>
+          {activeLabel}
+        </span>
       </div>
 
       {/* Right Section - Controls */}
-      <div className="flex items-center gap-4">
-        {/* Language Switcher */}
-        <div className="transition-all duration-300 hover:scale-105">
-          <LanguageSwitcher />
+      {showControls ? (
+        <div className="flex shrink-0 items-center gap-2 sm:gap-3 md:gap-4">
+          {/* Language Switcher */}
+          <div className="transition-all duration-300 hover:scale-105">
+            <LanguageSwitcher />
+          </div>
+
+          {/* Theme Switcher */}
+          <div className="transition-all duration-300 hover:scale-105">
+            <ThemeSwitcher />
+          </div>
+
+          {/* Divider */}
+          <div className="h-6 w-px bg-border/50"></div>
+
+          {onToggleNavMode ? (
+            <button
+              onClick={onToggleNavMode}
+              className="btn-secondary inline-flex h-10 items-center gap-1.5 border border-white/20 bg-white/5 px-2.5 text-xs text-slate-200 hover:border-cyan-300/45 hover:bg-cyan-500/10 sm:gap-2 sm:px-3"
+              title={navMode === "sidebar" ? t("switchToNavbar") : t("switchToSidebar")}
+            >
+              {navMode === "sidebar" ? <Rows3 size={15} /> : <PanelLeft size={15} />}
+              <span className="hidden lg:inline">{navMode === "sidebar" ? t("navbarView") : t("sidebarView")}</span>
+            </button>
+          ) : null}
+
+          {/* Sign Out Button */}
+          <button
+            onClick={onSignOut}
+            className="btn-secondary group inline-flex h-10 items-center gap-1.5 border border-destructive/30 bg-destructive/10 px-2.5 text-xs text-slate-200 hover:border-destructive/50 hover:bg-destructive/15 hover:text-destructive sm:gap-2 sm:px-3 md:text-sm"
+          >
+            <span className="hidden sm:inline">{t("signOut")}</span>
+            <LogOut size={16} className="text-muted-foreground transition-all group-hover:translate-x-0.5 group-hover:text-destructive" />
+          </button>
         </div>
-
-        {/* Theme Switcher */}
-        <div className="transition-all duration-300 hover:scale-105">
-          <ThemeSwitcher />
-        </div>
-
-        {/* Divider */}
-        <div className="h-6 w-px bg-border/50"></div>
-
-        {/* Sign Out Button */}
-        <button
-          onClick={onSignOut}
-          className="group relative flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm overflow-hidden transition-all duration-300"
-        >
-          {/* Background gradient */}
-          <div className="absolute inset-0 bg-gradient-to-r from-destructive/0 via-destructive/10 to-destructive/0 group-hover:from-destructive/10 group-hover:via-destructive/20 group-hover:to-destructive/10 transition-all duration-300" />
-          
-          {/* Border */}
-          <div className="absolute inset-0 border border-destructive/20 group-hover:border-destructive/50 rounded-lg transition-all duration-300" />
-          
-          {/* Content */}
-          <span className="relative text-foreground group-hover:text-destructive transition-colors duration-300">
-            {t("signOut")}
-          </span>
-          <LogOut
-            size={16}
-            className="relative text-muted-foreground group-hover:text-destructive transition-all duration-300 group-hover:translate-x-1"
-          />
-        </button>
-      </div>
+      ) : null}
     </header>
   );
 }

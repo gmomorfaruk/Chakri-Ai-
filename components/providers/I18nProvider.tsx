@@ -22,12 +22,22 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  React.useEffect(() => {
+    document.documentElement.lang = lang;
+  }, [lang]);
+
   const handleSetLang = React.useCallback((nextLang: SupportedLang) => {
     setLang(nextLang);
     window.localStorage.setItem("chakri-lang", nextLang);
   }, []);
 
-  const t = React.useCallback((key: string) => (messages[lang] as Record<string, string>)[key] || key, [lang]);
+  const t = React.useCallback(
+    (key: string) =>
+      (messages[lang] as Record<string, string>)[key] ||
+      (messages.en as Record<string, string>)[key] ||
+      key,
+    [lang]
+  );
   return (
     <I18nContext.Provider value={{ lang, setLang: handleSetLang, t }}>
       {children}

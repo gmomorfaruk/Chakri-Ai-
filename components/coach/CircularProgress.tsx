@@ -37,9 +37,15 @@ export function CircularProgress({
   };
 
   const sizeClasses = {
-    sm: "w-20 h-20",
+    sm: "h-24 w-24",
     md: "w-28 h-28",
     lg: "w-32 h-32",
+  };
+
+  const valueTextClasses = {
+    sm: "text-xl",
+    md: "text-2xl",
+    lg: "text-3xl",
   };
 
   const { gradient, shadow } = colorClasses[color];
@@ -101,7 +107,9 @@ export function CircularProgress({
             transition={{ duration: 0.5 }}
             className="text-center"
           >
-            <span className={`block text-2xl font-bold bg-gradient-to-r ${gradient} bg-clip-text text-transparent`}>
+            <span
+              className={`block leading-none tabular-nums ${valueTextClasses[size]} font-bold tracking-tight bg-gradient-to-r ${gradient} bg-clip-text text-transparent`}
+            >
               {Math.round(value)}%
             </span>
           </motion.div>

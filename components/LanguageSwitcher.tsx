@@ -3,17 +3,22 @@ import { useI18n } from "@/components/providers/I18nProvider";
 
 type SupportedLang = "en" | "bn";
 
-export function LanguageSwitcher() {
+type LanguageSwitcherProps = {
+  className?: string;
+};
+
+export function LanguageSwitcher({ className = "" }: LanguageSwitcherProps) {
   const { lang, setLang, t } = useI18n();
   return (
     <select
       value={lang}
       onChange={(e) => setLang(e.target.value as SupportedLang)}
-      className="rounded px-2 py-1 bg-muted text-foreground border"
+      className={`rounded border bg-muted px-2 py-1 text-foreground ${className}`.trim()}
       aria-label={t("language")}
+      title={t("language")}
     >
-      <option value="en">English</option>
-      <option value="bn">বাংলা</option>
+      <option value="en">{t("english")}</option>
+      <option value="bn">{t("bangla")}</option>
     </select>
   );
 }

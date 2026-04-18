@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowUpRight, Bookmark, BookmarkCheck, BriefcaseBusiness, Building2, MapPin, Radar, Search, Sparkles } from "lucide-react";
 import { useI18n } from "@/components/providers/I18nProvider";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
+import { buildSavedJobKey, loadSavedJobs, saveSavedJobs, toggleSavedJob } from "@/lib/savedJobsStore";
 import { Job } from "@/types/jobs";
 
 type JobsApiResponse = {
@@ -46,22 +47,11 @@ export function JobHubModule() {
   }, []);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      const raw = window.localStorage.getItem("jobs-hub-saved");
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as unknown;
-      if (Array.isArray(parsed)) {
-        setSavedJobIds(new Set(parsed.filter((item): item is string => typeof item === "string")));
-      }
-    } catch {
-      // Ignore malformed local storage payloads.
-    }
+    setSavedJobIds(loadSavedJobs());
   }, []);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem("jobs-hub-saved", JSON.stringify(Array.from(savedJobIds)));
+    saveSavedJobs(savedJobIds);
   }, [savedJobIds]);
 
   async function loadJobs() {
@@ -89,14 +79,9 @@ export function JobHubModule() {
 
   async function saveOrApply(job: Job, action: "save" | "apply") {
     if (action === "save") {
+      const key = buildSavedJobKey(job.id, "job");
       setSavedJobIds((prev) => {
-        const next = new Set(prev);
-        if (next.has(job.id)) {
-          next.delete(job.id);
-        } else {
-          next.add(job.id);
-        }
-        return next;
+        return toggleSavedJob(prev, key);
       });
       return;
     }
@@ -194,7 +179,10 @@ export function JobHubModule() {
     () => jobs.filter((item) => (item.location || "").toLowerCase().includes("remote")).length,
     [jobs]
   );
-  const savedCountInView = useMemo(() => jobs.filter((item) => savedJobIds.has(item.id)).length, [jobs, savedJobIds]);
+  const savedCountInView = useMemo(
+    () => jobs.filter((item) => savedJobIds.has(buildSavedJobKey(item.id, "job"))).length,
+    [jobs, savedJobIds]
+  );
   const featuredSkillPills = useMemo(() => skillOptions.slice(0, 8), [skillOptions]);
 
   return (
@@ -312,7 +300,7 @@ export function JobHubModule() {
             <div className="rounded-2xl border border-border/60 bg-card/80 p-5 text-sm text-muted-foreground">{t("emptyApprovedJobs")}</div>
           ) : (
             jobs.map((job) => {
-              const isSaved = savedJobIds.has(job.id);
+              const isSaved = savedJobIds.has(buildSavedJobKey(job.id, "job"));
               return (
                 <article
                   key={job.id}

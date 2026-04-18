@@ -4,6 +4,8 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { useI18n } from "@/components/providers/I18nProvider";
+import { syncAdaptiveSignals } from "@/lib/adaptiveIntelligenceClient";
+import { buildSavedJobKey, loadSavedJobs, saveSavedJobs, toggleSavedJob } from "@/lib/savedJobsStore";
 
 type ScoreFilter = "all" | "strong" | "good";
 type LocationFilter = "all" | "remote" | "local";
@@ -14,9 +16,13 @@ interface MatchedJob {
   title: string;
   company: string;
   location: string | null;
+  source?: string | null;
+  source_type?: string | null;
   source_url?: string | null;
   apply_url?: string | null;
   url?: string | null;
+  description?: string | null;
+  required_skills?: string[];
   score: number;
   skill_score: number;
   role_score: number;
@@ -160,7 +166,7 @@ export function JobMatchesDisplay({ refreshTrigger = 0, onError }: JobMatchesDis
   const [search, setSearch] = useState("");
   const [scoreFilter, setScoreFilter] = useState<ScoreFilter>("all");
   const [locationFilter, setLocationFilter] = useState<LocationFilter>("all");
-  const [updatedAt, setUpdatedAt] = useState("cached · 5 matches");
+  const [updatedAt, setUpdatedAt] = useState("-");
   const [toasts, setToasts] = useState<{ id: string; message: string; tone: "info" | "success" }[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -180,8 +186,8 @@ export function JobMatchesDisplay({ refreshTrigger = 0, onError }: JobMatchesDis
     const location_score = Number.isFinite(m.location_score) ? m.location_score : score;
     const experience_score = Number.isFinite(m.experience_score) ? m.experience_score : score;
 
-    const title = m.title || (m as any).job_title || (m as any).role_title || "Untitled role";
-    const company = m.company || (m as any).company_name || (m as any).employer || "Unknown";
+    const title = m.title || (m as any).job_title || (m as any).role_title || t("untitledRole");
+    const company = m.company || (m as any).company_name || (m as any).employer || t("unknown");
     const location = m.location || (m as any).job_location || "—";
     const salary_label = m.salary_label || (m as any).salary || "—";
     const experience_label = m.experience_label || (m as any).experience || "—";
@@ -204,8 +210,43 @@ export function JobMatchesDisplay({ refreshTrigger = 0, onError }: JobMatchesDis
       experience_label,
       salary_label,
       remote,
+      source: m.source || (m as any).job_source || t("mixedSources"),
+      source_type: m.source_type || (m as any).source_type || "internal",
+      description: m.description || (m as any).job_description || "",
+      required_skills: Array.isArray((m as any).required_skills) ? (m as any).required_skills : [],
     };
   });
+
+  useEffect(() => {
+    setSaved(loadSavedJobs());
+  }, []);
+
+  useEffect(() => {
+    saveSavedJobs(saved);
+  }, [saved]);
+
+  useEffect(() => {
+    if (!supabase) return;
+
+    void syncAdaptiveSignals(supabase, {
+      signals: [
+        {
+          domain: "jobs",
+          signalType: "saved_match_snapshot",
+          metricValue: saved.size,
+          source: "job_matches_display",
+          payload: {
+            savedMatchCount: saved.size,
+          },
+        },
+      ],
+      summary: {
+        jobs: {
+          savedCount: saved.size,
+        },
+      },
+    });
+  }, [saved, supabase]);
 
   async function loadMatches() {
     if (!supabase) {
@@ -236,15 +277,15 @@ export function JobMatchesDisplay({ refreshTrigger = 0, onError }: JobMatchesDis
       const data = await response.json();
 
       if (!response.ok || !data.success) {
-        setError(data.error || "Failed to load matches");
+        setError(data.error || t("jobMatchesLoadFailed"));
         setMatches(sampleMatches);
         return;
       }
 
       setMatches(normalized(data.matches || sampleMatches));
-      setUpdatedAt(`cached · ${(data.matches || sampleMatches).length} matches`);
+      setUpdatedAt(`${t("cached")} · ${(data.matches || sampleMatches).length} ${t("matchesLabel")}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load matches");
+      setError(err instanceof Error ? err.message : t("jobMatchesLoadFailed"));
       setMatches(sampleMatches);
     } finally {
       setLoading(false);
@@ -280,17 +321,43 @@ export function JobMatchesDisplay({ refreshTrigger = 0, onError }: JobMatchesDis
       const data = await response.json();
 
       if (!response.ok) {
-        setError(data.error || "Failed to compute matches");
+        setError(data.error || t("jobMatchesComputeFailed"));
         setComputing(false);
         return;
       }
 
       const newMatches = normalized(data.matches || sampleMatches);
       setMatches(newMatches);
-      setUpdatedAt(`just now · ${newMatches.length} matches found`);
-      pushToast(`Matches refreshed — ${newMatches.length} jobs found ✓`, "info");
+      setUpdatedAt(`${t("justNow")} · ${newMatches.length} ${t("jobsFound")}`);
+      pushToast(`${t("jobMatchesRefreshed")} - ${newMatches.length} ${t("jobsFound")} ✓`, "info");
+
+      const avgScore =
+        newMatches.length > 0
+          ? newMatches.reduce((sum, item) => sum + (Number.isFinite(item.score) ? item.score : 0), 0) / newMatches.length
+          : 0;
+
+      void syncAdaptiveSignals(supabase, {
+        signals: [
+          {
+            domain: "jobs",
+            signalType: "smart_match_computed",
+            metricValue: avgScore,
+            source: "job_matches_display",
+            payload: {
+              matchCount: newMatches.length,
+              averageScore: Math.round(avgScore),
+            },
+          },
+        ],
+        summary: {
+          jobs: {
+            matchCallsIncrement: 1,
+            savedCount: saved.size,
+          },
+        },
+      });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to compute matches");
+      setError(err instanceof Error ? err.message : t("jobMatchesComputeFailed"));
     } finally {
       setComputing(false);
     }
@@ -319,25 +386,97 @@ export function JobMatchesDisplay({ refreshTrigger = 0, onError }: JobMatchesDis
   const openApplyLink = (job: MatchedJob) => {
     const link = job.source_url || job.apply_url || job.url;
     if (!link) {
-      pushToast("No apply link provided for this job", "info");
+      pushToast(t("jobMatchesNoApplyLink"), "info");
       return;
     }
     window.open(normalizeUrl(link), "_blank", "noopener,noreferrer");
   };
 
   const toggleSave = (id: string) => {
+    const key = buildSavedJobKey(id, "match");
     setSaved((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-        pushToast("Removed from saved", "info");
+      const alreadySaved = prev.has(key);
+      const next = toggleSavedJob(prev, key);
+      if (alreadySaved) {
+        pushToast(t("jobMatchesRemovedSaved"), "info");
       } else {
-        next.add(id);
-        pushToast("Job saved", "success");
+        pushToast(t("jobMatchesSaved"), "success");
       }
       return next;
     });
   };
+
+  async function addToTracker(job: MatchedJob) {
+    if (!supabase) {
+      setError(t("profileSupabaseMissing"));
+      return;
+    }
+
+    const { data: authData } = await supabase.auth.getUser();
+    if (!authData.user) {
+      setError(t("profileAuthRequired"));
+      return;
+    }
+
+    const { data: existing, error: existingError } = await supabase
+      .from("job_applications")
+      .select("id")
+      .eq("user_id", authData.user.id)
+      .eq("role_title", job.title)
+      .eq("company", job.company)
+      .limit(1);
+
+    if (existingError) {
+      setError(existingError.message);
+      return;
+    }
+
+    if ((existing ?? []).length > 0) {
+      pushToast(t("jobMatchesAlreadyTracked"), "info");
+      return;
+    }
+
+    const { error: insertError } = await supabase.from("job_applications").insert({
+      user_id: authData.user.id,
+      job_post_id: null,
+      role_title: job.title,
+      company: job.company,
+      status: "applied",
+      applied_at: new Date().toISOString().slice(0, 10),
+      follow_up_date: null,
+      notes: `${job.source || t("smartMatches")}${job.apply_url ? `\n${t("applyUrl")}: ${job.apply_url}` : ""}`,
+      ai_followup_draft: null,
+    });
+
+    if (insertError) {
+      setError(insertError.message);
+      return;
+    }
+
+    pushToast(t("jobMatchesAddedTracker"), "success");
+
+    void syncAdaptiveSignals(supabase, {
+      signals: [
+        {
+          domain: "jobs",
+          signalType: "matched_job_added_to_tracker",
+          metricValue: job.score,
+          source: "job_matches_display",
+          payload: {
+            title: job.title,
+            company: job.company,
+            score: job.score,
+          },
+        },
+      ],
+      summary: {
+        jobs: {
+          appliedIncrement: 1,
+          savedCount: saved.size,
+        },
+      },
+    });
+  }
 
   const filtered = useMemo(() => {
     return matches.filter((job) => {
@@ -352,15 +491,18 @@ export function JobMatchesDisplay({ refreshTrigger = 0, onError }: JobMatchesDis
     });
   }, [matches, search, scoreFilter, locationFilter]);
 
-  const savedJobs = useMemo(() => matches.filter((m) => saved.has(m.job_id)), [matches, saved]);
+  const savedJobs = useMemo(
+    () => matches.filter((m) => saved.has(buildSavedJobKey(m.job_id, "match"))),
+    [matches, saved]
+  );
 
   const renderScoreStrip = (job: MatchedJob) => (
     <div className="grid grid-cols-2 divide-x divide-y divide-[#30363d] border-t border-b border-[#30363d] sm:grid-cols-4 sm:divide-y-0">
       {[
-        { label: "Skills", value: Math.round(job.skill_score), color: scoreTone(job.score) },
-        { label: "Role", value: Math.round(job.role_score), color: "#9ba6b5" },
-        { label: "Location", value: Math.round(job.location_score), color: "#9ba6b5" },
-        { label: "Experience", value: Math.round(job.experience_score), color: "#9ba6b5" },
+        { label: t("skills"), value: Math.round(job.skill_score), color: scoreTone(job.score) },
+        { label: t("roleLabel"), value: Math.round(job.role_score), color: "#9ba6b5" },
+        { label: t("location"), value: Math.round(job.location_score), color: "#9ba6b5" },
+        { label: t("experience"), value: Math.round(job.experience_score), color: "#9ba6b5" },
       ].map((item) => (
         <div key={item.label} className="space-y-1 p-2.5 text-center sm:p-3">
           <div className="text-lg font-semibold" style={{ color: item.color }}>
@@ -393,7 +535,7 @@ export function JobMatchesDisplay({ refreshTrigger = 0, onError }: JobMatchesDis
           </span>
         ))
       ) : (
-        <span className="text-[#3fb950]">✓ Perfect skill match!</span>
+        <span className="text-[#3fb950]">✓ {t("jobMatchesPerfectSkill")}</span>
       )}
     </div>
   );
@@ -405,10 +547,10 @@ export function JobMatchesDisplay({ refreshTrigger = 0, onError }: JobMatchesDis
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(88,166,255,0.16),transparent_42%)]" />
           <div className="space-y-1">
             <div className="relative text-xl font-bold sm:text-2xl" style={{ fontFamily: "Space Grotesk, DM Sans, system-ui" }}>
-              ⚡ Smart Matches
+              ⚡ {t("smartMatches")}
             </div>
-            <div className="relative text-sm text-[#9ba6b5]">Personalized roles curated for you.</div>
-          <div className="relative text-xs uppercase tracking-[0.16em] text-[#6e7681]">Last updated: {updatedAt}</div>
+            <div className="relative text-sm text-[#9ba6b5]">{t("jobMatchesHeaderSubtitle")}</div>
+          <div className="relative text-xs uppercase tracking-[0.16em] text-[#6e7681]">{t("jobMatchesLastUpdated")}: {updatedAt}</div>
           </div>
           <button
             onClick={computeMatches}
@@ -416,7 +558,7 @@ export function JobMatchesDisplay({ refreshTrigger = 0, onError }: JobMatchesDis
             className="relative inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#58a6ff] px-4 py-2.5 text-sm font-semibold text-[#0b1020] transition hover:translate-y-[-1px] disabled:translate-y-0 disabled:cursor-not-allowed disabled:bg-[#2d3d55] sm:w-auto"
             style={{ fontFamily: "Space Grotesk, DM Sans, system-ui" }}
           >
-            ↻ {computing ? "Finding..." : "Find Matches"}
+            ↻ {computing ? t("jobMatchesFinding") : t("jobMatchesFindMatches")}
           </button>
         </div>
 
@@ -425,7 +567,7 @@ export function JobMatchesDisplay({ refreshTrigger = 0, onError }: JobMatchesDis
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="🔍 Filter by title, company, skill..."
+            placeholder={t("jobMatchesFilterPlaceholder")}
             className="w-full rounded-full border border-[#30363d] bg-[#0d1117] px-4 py-3 text-sm text-white outline-none transition focus:border-[#58a6ff]"
           />
           <select
@@ -433,15 +575,15 @@ export function JobMatchesDisplay({ refreshTrigger = 0, onError }: JobMatchesDis
             onChange={(e) => setScoreFilter(e.target.value as ScoreFilter)}
             className="w-full rounded-full border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm text-white outline-none transition focus:border-[#58a6ff] sm:w-auto"
           >
-            <option value="all">All Scores</option>
-            <option value="strong">70%+ Strong</option>
-            <option value="good">50%+ Good</option>
+            <option value="all">{t("jobMatchesAllScores")}</option>
+            <option value="strong">70%+ {t("jobMatchesStrong")}</option>
+            <option value="good">50%+ {t("jobMatchesGood")}</option>
           </select>
           <div className="flex flex-wrap items-center gap-2">
             {[
-              { key: "all", label: "All" },
-              { key: "remote", label: "Remote" },
-              { key: "local", label: "Local" },
+              { key: "all", label: t("all") },
+              { key: "remote", label: t("remote") },
+              { key: "local", label: t("local") },
             ].map((opt) => {
               const active = locationFilter === opt.key;
               return (
@@ -471,7 +613,7 @@ export function JobMatchesDisplay({ refreshTrigger = 0, onError }: JobMatchesDis
             className="space-y-3 rounded-2xl border border-[#2e3948] bg-[#121926] p-3.5 sm:p-4"
           >
             <div className="text-sm font-semibold" style={{ fontFamily: "Space Grotesk, DM Sans, system-ui" }}>
-              ★ Saved Jobs
+              ★ {t("savedJobs")}
             </div>
             <div className="divide-y divide-[#30363d]">
               {savedJobs.map((job) => (
@@ -497,15 +639,15 @@ export function JobMatchesDisplay({ refreshTrigger = 0, onError }: JobMatchesDis
         <div className="flex flex-col items-center gap-3 rounded-2xl border border-[#2e3948] bg-[#121926] p-7 text-center sm:p-10">
           <div className="text-3xl">⚡</div>
           <div className="text-lg font-semibold" style={{ fontFamily: "Space Grotesk, DM Sans, system-ui" }}>
-            No matches yet
+            {t("jobMatchesNoMatchesYet")}
           </div>
-          <p className="max-w-md text-sm text-[#9ba6b5]">Run Smart Matches or adjust filters to see curated roles tailored to you.</p>
+          <p className="max-w-md text-sm text-[#9ba6b5]">{t("jobMatchesNoMatchesHint")}</p>
           <button
             onClick={computeMatches}
             className="rounded-lg bg-[#58a6ff] px-4 py-2 text-sm font-semibold text-[#0b1020] transition hover:translate-y-[-1px]"
             style={{ fontFamily: "Space Grotesk, DM Sans, system-ui" }}
           >
-            + Find Matches
+            + {t("jobMatchesFindMatches")}
           </button>
         </div>
       )}
@@ -520,8 +662,8 @@ export function JobMatchesDisplay({ refreshTrigger = 0, onError }: JobMatchesDis
             className="flex flex-col items-center gap-2 rounded-2xl border border-[#2e3948] bg-[#121926] p-7 text-center text-sm text-[#9ba6b5] sm:p-10"
           >
             <div className="h-10 w-10 animate-spin rounded-full border-2 border-[#58a6ff] border-t-transparent" />
-            <div className="text-white">Computing your top matches...</div>
-            <div className="text-xs text-[#9ba6b5]">Personalizing roles, skills, and seniority fit.</div>
+            <div className="text-white">{t("jobMatchesComputing")}</div>
+            <div className="text-xs text-[#9ba6b5]">{t("jobMatchesPersonalizing")}</div>
           </motion.div>
         ) : null}
       </AnimatePresence>
@@ -530,10 +672,10 @@ export function JobMatchesDisplay({ refreshTrigger = 0, onError }: JobMatchesDis
       {!loading && !computing && filtered.length > 0 && (
         <div className="space-y-4">
           {filtered.map((job) => {
-            const companyName = job.company ?? "Unknown";
+            const companyName = job.company ?? t("unknown");
             const initials = (job.company || job.title || "??").slice(0, 2).toUpperCase();
             const ringColor = scoreTone(job.score);
-            const isSaved = saved.has(job.job_id);
+              const isSaved = saved.has(buildSavedJobKey(job.job_id, "match"));
             return (
               <motion.article
                 key={job.job_id}
@@ -554,6 +696,10 @@ export function JobMatchesDisplay({ refreshTrigger = 0, onError }: JobMatchesDis
                         {job.title}
                       </div>
                       <div className="text-xs text-[#9ba6b5] sm:text-sm">{companyName}</div>
+                        <div className="mt-1 flex flex-wrap gap-1.5 text-[10px] uppercase tracking-[0.13em]">
+                          <span className="rounded-full border border-[#30363d] bg-[#0d1117] px-2 py-0.5 text-[#9ba6b5]">{job.source_type || t("internal")}</span>
+                          <span className="rounded-full border border-[#58a6ff55] bg-[#58a6ff22] px-2 py-0.5 text-[#9dd2ff]">{job.source || t("smartMatches")}</span>
+                        </div>
                       <div className="flex flex-wrap gap-2 text-xs text-white">
                         <span className="rounded-full border border-[#30363d] bg-[#1c2128] px-2 py-1">📍 {job.location ?? "—"}</span>
                         <span className="rounded-full border border-[#30363d] bg-[#1c2128] px-2 py-1">📈 {job.experience_label ?? "—"}</span>
@@ -581,7 +727,7 @@ export function JobMatchesDisplay({ refreshTrigger = 0, onError }: JobMatchesDis
                         <div className="text-sm font-bold" style={{ color: ringColor }}>
                           {Math.round(job.score)}%
                         </div>
-                        <div className="text-[10px] uppercase tracking-[0.16em] text-[#9ba6b5]">fit</div>
+                        <div className="text-[10px] uppercase tracking-[0.16em] text-[#9ba6b5]">{t("fit")}</div>
                       </div>
                     </div>
                   </div>
@@ -590,23 +736,29 @@ export function JobMatchesDisplay({ refreshTrigger = 0, onError }: JobMatchesDis
                 {renderScoreStrip(job)}
                 {renderSkillsRow(job)}
 
-                  <div className="flex flex-col gap-3 border-t border-[#30363d] bg-[#1a2332] p-3.5 sm:p-4 md:flex-row">
+                    <div className="grid gap-2 border-t border-[#30363d] bg-[#1a2332] p-3.5 sm:p-4 md:grid-cols-3">
                     <button
-                      className="flex-[2] rounded-lg bg-[#58a6ff] px-4 py-2 text-sm font-semibold text-[#0b1020]"
+                        className="rounded-lg bg-[#58a6ff] px-4 py-2 text-sm font-semibold text-[#0b1020]"
                       onClick={() => openApplyLink(job)}
                     >
-                      Apply Now ↗
+                      {t("applyNow")} ↗
                     </button>
                     <button
                       onClick={() => toggleSave(job.job_id)}
-                      className={`flex-1 rounded-lg border px-4 py-2 text-sm font-semibold transition ${
+                        className={`rounded-lg border px-4 py-2 text-sm font-semibold transition ${
                         isSaved
                           ? "border-[#58a6ff] text-[#58a6ff] bg-[#0d1117]"
                           : "border-[#30363d] text-white bg-[#161b22] hover:border-[#58a6ff]"
                       }`}
                     >
-                      {isSaved ? "★ Saved" : "☆ Save Job"}
+                      {isSaved ? `★ ${t("saved")}` : `☆ ${t("jobMatchesSaveJob")}`}
                     </button>
+                      <button
+                        className="rounded-lg border border-[#3fb95088] bg-[#3fb95022] px-4 py-2 text-sm font-semibold text-[#8df3a1] transition hover:bg-[#3fb95033]"
+                        onClick={() => void addToTracker(job)}
+                      >
+                        {t("jobMatchesAddToTracker")}
+                      </button>
                   </div>
                 </motion.article>
               );
@@ -617,7 +769,7 @@ export function JobMatchesDisplay({ refreshTrigger = 0, onError }: JobMatchesDis
       {/* Footer stats */}
       {!loading && !computing && filtered.length > 0 && (
         <div className="rounded-xl border border-[#2e3948] bg-[#121926] p-4 text-center text-sm text-[#9ba6b5]">
-          Showing {filtered.length} matches · {updatedAt}
+          {t("jobMatchesShowing")} {filtered.length} {t("matchesLabel")} · {updatedAt}
         </div>
       )}
 

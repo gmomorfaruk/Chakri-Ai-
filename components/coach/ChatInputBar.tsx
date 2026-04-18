@@ -63,22 +63,22 @@ export function ChatInputBar({ onSendMessage, isLoading = false }: ChatInputBarP
               }
             }
           }}
-          className="flex gap-3"
+          className="flex flex-wrap items-end gap-2 sm:flex-nowrap sm:gap-3"
         >
-          <div className="flex-1 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm transition-all focus-within:border-blue-500/50 focus-within:bg-white/10 focus-within:shadow-lg focus-within:shadow-blue-500/10">
+          <div className="min-w-0 flex-1 basis-full rounded-2xl border border-white/15 bg-white/[0.06] backdrop-blur-sm transition-all focus-within:border-cyan-400/55 focus-within:bg-white/10 focus-within:shadow-lg focus-within:shadow-cyan-500/10 sm:basis-auto">
             <textarea
               ref={textareaRef}
               value={input}
               onChange={handleInput}
               onKeyDown={handleKeyDown}
-              placeholder={t("coachInputPlaceholder") || "Message the coach..."}
+              placeholder={t("coachInputPlaceholder") || "Type your interview answer or ask for your next practice question..."}
               rows={rows}
               disabled={isLoading}
-              className="w-full resize-none bg-transparent px-4 py-3 text-sm text-white placeholder-gray-500 outline-none disabled:opacity-50"
+              className="w-full resize-none bg-transparent px-4 py-3 text-sm text-white placeholder-gray-400 outline-none disabled:opacity-50"
             />
           </div>
 
-          <div className="flex items-end gap-2">
+          <div className="ml-auto flex flex-shrink-0 items-end gap-2 sm:ml-0">
             {/* Mic Button (placeholder) */}
             <button
               type="button"
@@ -93,10 +93,11 @@ export function ChatInputBar({ onSendMessage, isLoading = false }: ChatInputBarP
             <button
               type="submit"
               disabled={!input.trim() || isLoading}
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 text-white transition-all hover:shadow-lg hover:shadow-blue-500/50 disabled:opacity-50"
+              className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 px-3.5 text-xs font-semibold text-white transition-all hover:shadow-lg hover:shadow-blue-500/50 disabled:opacity-50"
               title={t("send") || "Send"}
             >
-              <Send className="h-5 w-5" />
+              <span>{t("send") || "Send"}</span>
+              <Send className="h-4 w-4" />
             </button>
           </div>
         </form>

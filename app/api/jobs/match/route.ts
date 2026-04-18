@@ -7,6 +7,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
 import { computeJobMatch, scoreToPercentage } from "@/lib/jobMatchingEngine";
+import { fetchUnifiedJobs, unifiedToMatchableJob } from "@/lib/jobDiscovery";
 import {
   getUserProfileForMatching,
   getApprovedJobs,
@@ -28,6 +29,33 @@ async function getUserFromToken(supabase: any, req: Request) {
   } = await supabase.auth.getUser(token);
 
   return user;
+}
+
+function isInternalJobId(jobId: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(jobId);
+}
+
+function dedupeMatchRows<T extends { title?: string | null; company?: string | null; source_url?: string | null }>(rows: T[]) {
+  const map = new Map<string, T>();
+
+  for (const row of rows) {
+    const key = `${(row.title || "").toLowerCase().trim()}|${(row.company || "").toLowerCase().trim()}|${(row.source_url || "").toLowerCase().trim()}`;
+    if (!key.replace(/\|/g, "")) continue;
+
+    const existing = map.get(key);
+    if (!existing) {
+      map.set(key, row);
+      continue;
+    }
+
+    const existingScore = typeof (existing as any).score === "number" ? (existing as any).score : 0;
+    const nextScore = typeof (row as any).score === "number" ? (row as any).score : 0;
+    if (nextScore >= existingScore) {
+      map.set(key, row);
+    }
+  }
+
+  return Array.from(map.values());
 }
 
 export async function POST(req: Request) {
@@ -63,7 +91,7 @@ export async function POST(req: Request) {
     // Normalize user skills to array
     const userSkills = Array.isArray(userProfile.skills) ? userProfile.skills : [];
 
-    // Step 3: Fetch all approved jobs
+    // Step 3: Fetch all approved internal jobs
     const { data: approvedJobs, error: jobsError } = await getApprovedJobs(supabase);
     let jobs = approvedJobs;
     if (jobsError) {
@@ -84,7 +112,18 @@ export async function POST(req: Request) {
       jobs = fallbackJobs ?? [];
     }
 
-    if (jobs.length === 0) {
+    const externalDiscovery = await fetchUnifiedJobs([], {
+      search: userProfile.target_role ?? "",
+      includeInternal: false,
+      includeExternal: true,
+      page: 1,
+      limit: 80,
+    });
+
+    const externalMatchableJobs = externalDiscovery.jobs.map((item) => unifiedToMatchableJob(item));
+    const allJobs = [...jobs, ...externalMatchableJobs];
+
+    if (allJobs.length === 0) {
       return NextResponse.json({ success: true, matches: [], message: "No jobs available for matching yet." });
     }
 
@@ -97,7 +136,7 @@ export async function POST(req: Request) {
     const matchResults = [];
 
     // Step 5: Run matching algorithm for each job and store results
-    for (const job of jobs) {
+    for (const job of allJobs) {
       const matchScore = computeJobMatch(
         {
           id: userId,
@@ -109,19 +148,21 @@ export async function POST(req: Request) {
         job
       );
 
-      // Persist match when possible, but still return computed result even if storage fails.
-      const { error: insertError } = await upsertJobMatch(supabase, userId, job.id, {
-        skill_score: matchScore.skill_score,
-        role_score: matchScore.role_score,
-        location_score: matchScore.location_score,
-        experience_score: matchScore.experience_score,
-        total_score: matchScore.total_score,
-        matched_skills: matchScore.matched_skills,
-        missing_skills: matchScore.missing_skills,
-      });
+      // Persist only internal jobs to avoid FK failures for external ids.
+      if (isInternalJobId(job.id)) {
+        const { error: insertError } = await upsertJobMatch(supabase, userId, job.id, {
+          skill_score: matchScore.skill_score,
+          role_score: matchScore.role_score,
+          location_score: matchScore.location_score,
+          experience_score: matchScore.experience_score,
+          total_score: matchScore.total_score,
+          matched_skills: matchScore.matched_skills,
+          missing_skills: matchScore.missing_skills,
+        });
 
-      if (insertError) {
-        console.error("upsertJobMatch error:", insertError);
+        if (insertError) {
+          console.error("upsertJobMatch error:", insertError);
+        }
       }
 
       matchResults.push({
@@ -129,6 +170,12 @@ export async function POST(req: Request) {
         title: job.title,
         company: job.company,
         location: job.location,
+        source: job.source,
+        source_type: isInternalJobId(job.id) ? "internal" : "external_api",
+        source_url: job.source_url,
+        apply_url: job.source_url,
+        description: job.description,
+        required_skills: Array.isArray(job.required_skills) ? job.required_skills : [],
         score: scoreToPercentage(matchScore.total_score),
         skill_score: scoreToPercentage(matchScore.skill_score),
         role_score: scoreToPercentage(matchScore.role_score),
@@ -140,13 +187,14 @@ export async function POST(req: Request) {
     }
 
     // Step 6: Sort by score and return top 10
-    matchResults.sort((a, b) => b.score - a.score);
-    const topMatches = matchResults.slice(0, 10);
+    const deduped = dedupeMatchRows(matchResults);
+    deduped.sort((a, b) => b.score - a.score);
+    const topMatches = deduped.slice(0, 15);
 
     return NextResponse.json({
       success: true,
-      message: `Computed ${matchResults.length} matches, showing top ${topMatches.length}`,
-      total_matches: matchResults.length,
+      message: `Computed ${deduped.length} matches, showing top ${topMatches.length}`,
+      total_matches: deduped.length,
       matches: topMatches,
     });
   } catch (error) {
@@ -182,7 +230,7 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const limit = parseInt(url.searchParams.get("limit") ?? "10");
 
-    // Fetch existing matches
+    // Fetch cached internal matches first
     const { data: matches, error: matchesError } = await getUserJobMatches(supabase, userId, limit);
     if (matchesError) {
       console.error("getUserJobMatches error:", matchesError);
@@ -196,6 +244,12 @@ export async function GET(req: Request) {
       title: match.jobs?.title ?? null,
       company: match.jobs?.company ?? null,
       location: match.jobs?.location ?? null,
+      source: match.jobs?.source ?? "Internal Jobs",
+      source_type: "internal",
+      source_url: match.jobs?.source_url ?? null,
+      apply_url: match.jobs?.source_url ?? null,
+      description: match.jobs?.description ?? "",
+      required_skills: Array.isArray(match.jobs?.required_skills) ? match.jobs.required_skills : [],
       score: scoreToPercentage(match.total_score),
       skill_score: scoreToPercentage(match.skill_score),
       role_score: scoreToPercentage(match.role_score),
@@ -216,10 +270,57 @@ export async function GET(req: Request) {
       created_at: match.created_at,
     }));
 
+    const userProfile = await getUserProfileForMatching(supabase, userId);
+    const externalDiscovery = await fetchUnifiedJobs([], {
+      search: userProfile?.target_role ?? "",
+      includeInternal: false,
+      includeExternal: true,
+      page: 1,
+      limit: Math.max(20, limit * 2),
+    });
+
+    const externalRows = (userProfile ? externalDiscovery.jobs : []).map((item) => {
+      const matchScore = computeJobMatch(
+        {
+          id: userId,
+          skills: Array.isArray(userProfile?.skills) ? userProfile.skills : [],
+          target_role: userProfile?.target_role,
+          preferred_location: userProfile?.preferred_location,
+          years_experience: userProfile?.years_experience,
+        },
+        unifiedToMatchableJob(item)
+      );
+
+      return {
+        id: item.id,
+        job_id: item.id,
+        title: item.title,
+        company: item.company,
+        location: item.location,
+        source: item.source,
+        source_type: item.source_type,
+        source_url: item.source_url,
+        apply_url: item.apply_url,
+        description: item.full_description,
+        required_skills: item.skills,
+        score: scoreToPercentage(matchScore.total_score),
+        skill_score: scoreToPercentage(matchScore.skill_score),
+        role_score: scoreToPercentage(matchScore.role_score),
+        location_score: scoreToPercentage(matchScore.location_score),
+        experience_score: scoreToPercentage(matchScore.experience_score),
+        matched_skills: matchScore.matched_skills,
+        missing_skills: matchScore.missing_skills,
+        job: null,
+        created_at: item.created_at,
+      };
+    });
+
+    const merged = dedupeMatchRows([...formattedMatches, ...externalRows]).sort((a, b) => b.score - a.score).slice(0, limit);
+
     return NextResponse.json({
       success: true,
-      matches: formattedMatches,
-      total: formattedMatches.length,
+      matches: merged,
+      total: merged.length,
     });
   } catch (error) {
     console.error("Error fetching matches:", error);

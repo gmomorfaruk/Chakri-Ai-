@@ -11,9 +11,19 @@ type JobMatchingPanelProps = {
   userId: string;
   approvedPosts: Job[];
   onError: (message: string | null) => void;
+  prefilledDescription?: string;
+  prefilledJobId?: string;
+  onPrefillConsumed?: () => void;
 };
 
-export function JobMatchingPanel({ userId, approvedPosts, onError }: JobMatchingPanelProps) {
+export function JobMatchingPanel({
+  userId,
+  approvedPosts,
+  onError,
+  prefilledDescription,
+  prefilledJobId,
+  onPrefillConsumed,
+}: JobMatchingPanelProps) {
   const { t } = useI18n();
   const supabase = useSupabase();
 
@@ -48,6 +58,21 @@ export function JobMatchingPanel({ userId, approvedPosts, onError }: JobMatching
     [approvedPosts, selectedJobId]
   );
 
+  useEffect(() => {
+    if (!prefilledDescription || !prefilledDescription.trim()) return;
+
+    setJobDescription(prefilledDescription.trim());
+
+    if (prefilledJobId) {
+      const exists = approvedPosts.some((item) => item.id === prefilledJobId);
+      if (exists) {
+        setSelectedJobId(prefilledJobId);
+      }
+    }
+
+    onPrefillConsumed?.();
+  }, [prefilledDescription, prefilledJobId, approvedPosts, onPrefillConsumed]);
+
   function useSelectedJobDescription() {
     if (!selectedJob) return;
     setJobDescription(selectedJob.description);
@@ -68,7 +93,7 @@ export function JobMatchingPanel({ userId, approvedPosts, onError }: JobMatching
       setResult(analysis);
       setLastAnalyzedAt(new Date().toLocaleTimeString());
     } catch {
-      onError("Unable to analyze this description right now. Please try again.");
+      onError(t("jobMatchingUnableAnalyze"));
     } finally {
       setIsAnalyzing(false);
     }
@@ -77,20 +102,20 @@ export function JobMatchingPanel({ userId, approvedPosts, onError }: JobMatching
   const canAnalyze = jobDescription.trim().length >= 20;
   const matchedPct = result?.score ?? 0;
   const scoreTone = matchedPct >= 75 ? "text-emerald-300" : matchedPct >= 50 ? "text-amber-300" : "text-red-300";
-  const scoreLabel = matchedPct >= 75 ? "Strong fit" : matchedPct >= 50 ? "Moderate fit" : "Low fit";
+  const scoreLabel = matchedPct >= 75 ? t("jobMatchingStrongFit") : matchedPct >= 50 ? t("jobMatchingModerateFit") : t("jobMatchingLowFit");
   const quickDescriptionPills = [
-    "Frontend role (React + TypeScript)",
-    "Backend role (Node + SQL)",
-    "Data Analyst role (Python + SQL)",
+    { id: "frontend", label: t("jobMatchingQuickFrontend") },
+    { id: "backend", label: t("jobMatchingQuickBackend") },
+    { id: "data", label: t("jobMatchingQuickData") },
   ];
 
-  function insertQuickDescription(value: string) {
-    const presets: Record<string, string> = {
-      "Frontend role (React + TypeScript)":
+  function insertQuickDescription(value: "frontend" | "backend" | "data") {
+    const presets: Record<"frontend" | "backend" | "data", string> = {
+      frontend:
         "We are hiring a Frontend Engineer with strong React, TypeScript, Tailwind CSS, API integration, and testing experience. Candidate should collaborate with design and product teams, build reusable UI components, and optimize performance.",
-      "Backend role (Node + SQL)":
+      backend:
         "Looking for a Backend Engineer proficient in Node.js, API design, PostgreSQL, authentication, and cloud deployment. You will build scalable services, secure endpoints, and maintain system reliability in production.",
-      "Data Analyst role (Python + SQL)":
+      data:
         "Seeking a Data Analyst skilled in SQL, Python, Excel, and dashboarding tools. Responsibilities include data cleaning, reporting, business insights, and communicating findings to stakeholders.",
     };
 
@@ -108,12 +133,12 @@ export function JobMatchingPanel({ userId, approvedPosts, onError }: JobMatching
 
         <div className="relative flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h2 className="text-lg font-semibold tracking-tight sm:text-xl">Career DNA Scanner</h2>
+            <h2 className="text-lg font-semibold tracking-tight sm:text-xl">{t("careerDnaScanner")}</h2>
             <p className="mt-1 text-sm text-muted-foreground">{t("jobMatchingHint")}</p>
           </div>
           <div className="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
             <Sparkles className="h-3.5 w-3.5" />
-            Smart Match v2
+            {t("smartMatchV2")}
           </div>
         </div>
 
@@ -143,7 +168,7 @@ export function JobMatchingPanel({ userId, approvedPosts, onError }: JobMatching
             disabled={!canAnalyze || isAnalyzing}
           >
             {isAnalyzing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
-            {isAnalyzing ? "Analyzing..." : t("analyzeJobMatch")}
+            {isAnalyzing ? t("analyzing") : t("analyzeJobMatch")}
           </button>
         </div>
 
@@ -157,17 +182,17 @@ export function JobMatchingPanel({ userId, approvedPosts, onError }: JobMatching
 
         <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-muted-foreground">
-            {jobDescription.trim().length} chars · minimum 20 chars needed for analysis
+            {jobDescription.trim().length} {t("jobMatchingCharsHint")}
           </p>
           <div className="flex flex-wrap gap-2">
             {quickDescriptionPills.map((pill) => (
               <button
-                key={pill}
+                key={pill.id}
                 type="button"
-                onClick={() => insertQuickDescription(pill)}
+                onClick={() => insertQuickDescription(pill.id as "frontend" | "backend" | "data")}
                 className="rounded-full border border-border px-3 py-1 text-xs text-muted-foreground transition hover:border-primary/30 hover:text-foreground"
               >
-                {pill}
+                {pill.label}
               </button>
             ))}
           </div>
@@ -198,7 +223,7 @@ export function JobMatchingPanel({ userId, approvedPosts, onError }: JobMatching
       <section className="rounded-3xl border border-border/60 bg-card/95 p-4 shadow-sm sm:p-5">
         <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
           <h3 className="text-lg font-semibold tracking-tight">{t("matchingResult")}</h3>
-          {lastAnalyzedAt ? <span className="text-xs text-muted-foreground">Last analyzed at {lastAnalyzedAt}</span> : null}
+          {lastAnalyzedAt ? <span className="text-xs text-muted-foreground">{t("lastAnalyzedAt")} {lastAnalyzedAt}</span> : null}
         </div>
         {!result ? (
           <div className="mt-3 rounded-2xl border border-dashed border-border p-5 text-center text-sm text-muted-foreground">{t("noMatchingResult")}</div>
@@ -219,18 +244,18 @@ export function JobMatchingPanel({ userId, approvedPosts, onError }: JobMatching
               <div className="rounded-2xl border border-border bg-background/60 p-4">
                 <div className="inline-flex items-center gap-2 text-sm font-semibold">
                   <Gauge className="h-4 w-4 text-primary" />
-                  Coverage
+                  {t("coverage")}
                 </div>
                 <p className="mt-2 text-2xl font-bold text-foreground">{result.matchedSkills.length}/{result.requiredSkills.length}</p>
-                <p className="text-xs text-muted-foreground">skills matched from detected requirements</p>
+                <p className="text-xs text-muted-foreground">{t("skillsMatchedDetected")}</p>
               </div>
             </div>
 
             <div className="rounded-2xl border border-border bg-background/60 p-4">
-              <p className="font-semibold">Detected required skills</p>
+              <p className="font-semibold">{t("detectedRequiredSkills")}</p>
               <div className="mt-2 flex flex-wrap gap-2">
                 {result.requiredSkills.length === 0 ? (
-                  <span className="text-sm text-muted-foreground">No required skills detected.</span>
+                  <span className="text-sm text-muted-foreground">{t("noRequiredSkillsDetected")}</span>
                 ) : (
                   result.requiredSkills.map((skill) => (
                     <span key={skill} className="rounded-full border border-border px-2.5 py-1 text-xs text-foreground/90">

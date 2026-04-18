@@ -12,14 +12,12 @@ interface LearningCategoryPanelProps {
 const categories: Array<{
   id: LearningTopic;
   icon: string;
-  label: string;
-  description: string;
 }> = [
-  { id: "general", icon: "🎯", label: "General", description: "Career guidance" },
-  { id: "it", icon: "💻", label: "IT & Tech", description: "Software roles" },
-  { id: "govt", icon: "🏛️", label: "Government", description: "Govt & BCS" },
-  { id: "bank", icon: "🏦", label: "Banking", description: "Finance sector" },
-  { id: "ngo", icon: "🤝", label: "NGO", description: "Dev sector" },
+  { id: "general", icon: "🎯" },
+  { id: "it", icon: "💻" },
+  { id: "govt", icon: "🏛️" },
+  { id: "bank", icon: "🏦" },
+  { id: "ngo", icon: "🤝" },
 ];
 
 export function LearningCategoryPanel({
@@ -38,7 +36,7 @@ export function LearningCategoryPanel({
             <h2 className="font-bold text-[#e6edf3] text-sm">
               {t("learningCoach") || "Career Coach AI"}
             </h2>
-            <p className="text-xs text-[#8b949e]">Career mentor</p>
+            <p className="text-xs text-[#8b949e]">{t("learningCareerMentor")}</p>
           </div>
         </div>
       </div>
@@ -61,8 +59,28 @@ export function LearningCategoryPanel({
           >
             <span className="text-lg">{cat.icon}</span>
             <div className="leading-tight">
-              <div className="font-semibold">{cat.label}</div>
-              <div className="text-[11px] text-[#8b949e]">{cat.description}</div>
+              <div className="font-semibold">
+                {cat.id === "general"
+                  ? t("coachLearnGeneral")
+                  : cat.id === "it"
+                    ? t("coachLearnIt")
+                    : cat.id === "govt"
+                      ? t("coachLearnGovt")
+                      : cat.id === "bank"
+                        ? t("coachLearnBank")
+                        : t("coachLearnNgo")}
+              </div>
+              <div className="text-[11px] text-[#8b949e]">
+                {cat.id === "general"
+                  ? t("learningDescGeneral")
+                  : cat.id === "it"
+                    ? t("learningDescIt")
+                    : cat.id === "govt"
+                      ? t("learningDescGovt")
+                      : cat.id === "bank"
+                        ? t("learningDescBank")
+                        : t("learningDescNgo")}
+              </div>
             </div>
           </button>
         ))}
@@ -72,7 +90,7 @@ export function LearningCategoryPanel({
       <div className="border-t border-[#1f2730] px-3 py-3 text-[12px] text-[#8b949e]">
         <div className="flex items-center gap-2">
           <span className="h-2 w-2 rounded-full bg-emerald-400" />
-          Voice (beta) available
+          {t("learningVoiceBetaAvailable")}
         </div>
       </div>
     </div>

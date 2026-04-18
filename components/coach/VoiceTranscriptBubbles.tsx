@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { useI18n } from "@/components/providers/I18nProvider";
 
 interface VoiceMessage {
   role: "user" | "ai";
@@ -17,6 +18,7 @@ export function VoiceTranscriptBubbles({
   messages,
   liveTranscript,
 }: VoiceTranscriptBubblesProps) {
+  const { t } = useI18n();
   const endRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to latest message
@@ -39,7 +41,7 @@ export function VoiceTranscriptBubbles({
             }`}
           >
             <p className="text-xs font-semibold mb-1 opacity-70">
-              {msg.role === "user" ? "You" : "AI"}
+              {msg.role === "user" ? t("you") : t("coachAssistant")}
             </p>
             <p className="leading-relaxed whitespace-pre-wrap break-words">{msg.text}</p>
           </div>
@@ -50,7 +52,7 @@ export function VoiceTranscriptBubbles({
       {liveTranscript && (
         <div className="flex justify-end animate-in fade-in slide-in-from-bottom-2 duration-300">
           <div className="max-w-xs rounded-lg px-4 py-2 text-sm bg-blue-600/50 text-white border border-blue-400/50">
-            <p className="text-xs font-semibold mb-1 opacity-70">You</p>
+            <p className="text-xs font-semibold mb-1 opacity-70">{t("you")}</p>
             <p className="leading-relaxed whitespace-pre-wrap break-words italic opacity-80">
               {liveTranscript}
             </p>

@@ -41,11 +41,17 @@ import {
   getProfileCompletion,
   upsertProfile,
 } from "@/lib/profileService";
+import { createApprovalRequest } from "@/lib/adminApprovalService";
 import { ProfileBundle, Project } from "@/types/profile";
 
 const cn = (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(" ");
 
 const ACCENT = "#22d3ee";
+const PROFILE_UPLOAD_BUCKET = "profile-assets";
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+const PANEL_SURFACE = "rounded-3xl border border-cyan-300/20 bg-[#070d16]/95 shadow-[0_22px_60px_rgba(0,0,0,0.42)] backdrop-blur-xl";
+const PANEL_SOFT = "rounded-2xl border border-white/10 bg-white/[0.03]";
+const EMPTY_STATE = "rounded-2xl border border-dashed border-white/15 bg-white/[0.02] p-5 text-sm leading-6 text-slate-300";
 
 type TerminalKind = "system" | "command" | "output" | "error";
 
@@ -92,6 +98,30 @@ function inferPrimaryLanguage(project: Project) {
   if (source.includes("java")) return "Java";
   if (source.includes("sql") || source.includes("postgres")) return "SQL";
   return "Code";
+}
+
+function sanitizeFileName(input: string) {
+  const [name, extension] = input.split(/\.(?=[^.]+$)/);
+  const safeName = (name || "file")
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 64);
+  const safeExt = (extension || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "")
+    .slice(0, 12);
+
+  return safeExt ? `${safeName || "file"}.${safeExt}` : safeName || "file";
+}
+
+function inferDocumentTypeFromFile(file: File) {
+  const type = file.type.toLowerCase();
+  if (type.startsWith("image/")) return "image";
+  if (type === "application/pdf") return "pdf";
+  if (type.includes("word")) return "document";
+  return "certificate";
 }
 
 function RevealPanel({
@@ -179,7 +209,11 @@ export function ProfileModule() {
   const [newEducation, setNewEducation] = useState({ institution: "" });
   const [newExperience, setNewExperience] = useState({ company: "", title: "" });
   const [newProject, setNewProject] = useState({ title: "" });
-  const [newDocument, setNewDocument] = useState({ name: "", url: "" });
+  const [newDocument, setNewDocument] = useState({ name: "", url: "", type: "" });
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [documentFile, setDocumentFile] = useState<File | null>(null);
+  const [documentUploading, setDocumentUploading] = useState(false);
 
   const [terminalInput, setTerminalInput] = useState("");
   const [terminalBootText, setTerminalBootText] = useState("");
@@ -248,6 +282,41 @@ export function ProfileModule() {
     }
   }
 
+  async function uploadProfileAssetFile(file: File, folder: "avatars" | "documents") {
+    if (!supabase || !userId) {
+      throw new Error("You must be signed in to upload files.");
+    }
+
+    if (file.size > MAX_UPLOAD_BYTES) {
+      throw new Error("File is too large. Maximum allowed size is 10MB.");
+    }
+
+    const filePath = `${userId}/${folder}/${Date.now()}-${sanitizeFileName(file.name)}`;
+    const { error: uploadError } = await supabase.storage
+      .from(PROFILE_UPLOAD_BUCKET)
+      .upload(filePath, file, {
+        cacheControl: "3600",
+        upsert: false,
+        contentType: file.type || undefined,
+      });
+
+    if (uploadError) {
+      const missingBucket = /bucket not found/i.test(uploadError.message);
+      throw new Error(
+        missingBucket
+          ? "Storage bucket 'profile-assets' is missing. Run supabase_profile_uploads_schema.sql in Supabase SQL Editor."
+          : uploadError.message
+      );
+    }
+
+    const { data: publicUrlData } = supabase.storage.from(PROFILE_UPLOAD_BUCKET).getPublicUrl(filePath);
+    if (!publicUrlData?.publicUrl) {
+      throw new Error("Upload completed but public URL could not be generated.");
+    }
+
+    return publicUrlData.publicUrl;
+  }
+
   const appendTerminal = useCallback((kind: TerminalKind, content: ReactNode) => {
     setTerminalEntries((prev) => [...prev, { id: createTerminalEntryId(), kind, content }]);
   }, []);
@@ -295,11 +364,11 @@ export function ProfileModule() {
     setTerminalEntries([]);
     setTerminalReady(false);
 
-    const bootLine = "> Initializing dev.profile... Access granted. ✓";
+    const bootLine = "> Initializing profile.console... ready.";
 
     if (reduceMotion) {
       appendTerminal("system", bootLine);
-      appendTerminal("system", "Type 'help' to inspect available commands.");
+      appendTerminal("system", "Type help to view quick profile commands.");
       setTerminalReady(true);
       return;
     }
@@ -314,7 +383,7 @@ export function ProfileModule() {
       if (index >= bootLine.length) {
         window.clearInterval(timer);
         appendTerminal("system", bootLine);
-        appendTerminal("system", "Type 'help' to inspect available commands.");
+        appendTerminal("system", "Type help to view quick profile commands.");
         setTerminalBootText("");
         setTerminalReady(true);
       }
@@ -395,13 +464,16 @@ export function ProfileModule() {
     setSaving(true);
     setError(null);
 
+    const requestedPublicVisibility = profileForm.is_public;
+
     const { error: saveError } = await upsertProfile(supabase, userId, {
       username: normalizedUsername || null,
       full_name: profileForm.full_name.trim(),
       bio: profileForm.bio.trim() || null,
       avatar_url: profileForm.avatar_url.trim() || null,
       theme: profileForm.theme,
-      is_public: profileForm.is_public,
+      // Public visibility is gated by admin approval.
+      is_public: requestedPublicVisibility ? false : profileForm.is_public,
     });
 
     if (saveError) {
@@ -414,9 +486,73 @@ export function ProfileModule() {
       return;
     }
 
+    const updateSummary = `Profile update from ${profileForm.full_name.trim() || "Unnamed user"}${normalizedUsername ? ` (@${normalizedUsername})` : ""}`;
+
+    const { error: profileApprovalError } = await createApprovalRequest(supabase, {
+      requested_by: userId,
+      request_type: "profile_update",
+      resource_type: "profile",
+      resource_id: userId,
+      title: "Profile update requires admin review",
+      summary: updateSummary,
+      payload: {
+        full_name: profileForm.full_name.trim(),
+        username: normalizedUsername || null,
+        theme: profileForm.theme,
+        requested_public_visibility: requestedPublicVisibility,
+      },
+    });
+
+    if (profileApprovalError) {
+      const missingApprovalTable =
+        profileApprovalError.message.includes("Could not find the table") &&
+        profileApprovalError.message.includes("admin_approval_requests");
+
+      setSaving(false);
+      setError(
+        missingApprovalTable
+          ? "Profile saved, but approval workflow tables are missing. Run supabase_admin_approval_schema.sql in Supabase SQL Editor and retry."
+          : `Profile saved, but admin approval request could not be created: ${profileApprovalError.message}`
+      );
+      return;
+    }
+
+    if (requestedPublicVisibility) {
+      const { error: visibilityApprovalError } = await createApprovalRequest(supabase, {
+        requested_by: userId,
+        request_type: "portfolio_publish",
+        resource_type: "profile",
+        resource_id: userId,
+        title: "Public profile visibility request",
+        summary: `${profileForm.full_name.trim() || "User"} requested public portfolio approval`,
+        payload: {
+          desired_public_visibility: true,
+          username: normalizedUsername || null,
+        },
+      });
+
+      if (visibilityApprovalError) {
+        const missingApprovalTable =
+          visibilityApprovalError.message.includes("Could not find the table") &&
+          visibilityApprovalError.message.includes("admin_approval_requests");
+
+        setSaving(false);
+        setError(
+          missingApprovalTable
+            ? "Profile saved, but approval workflow tables are missing. Run supabase_admin_approval_schema.sql in Supabase SQL Editor and retry."
+            : `Profile saved, but portfolio visibility request could not be submitted: ${visibilityApprovalError.message}`
+        );
+        return;
+      }
+    }
+
     await reloadBundle(userId);
     setSaving(false);
-    setSaveMessage("Profile saved successfully.");
+    setSaveMessage(
+      requestedPublicVisibility
+        ? "Profile saved and submitted for admin approval. Public visibility will activate after approval."
+        : "Profile saved and submitted for admin review."
+    );
     setIsEditing(false);
   }
 
@@ -547,23 +683,60 @@ export function ProfileModule() {
   }
 
   async function onAddDocument() {
-    if (!supabase || !userId || !newDocument.name.trim() || !newDocument.url.trim()) return;
-    if (!isValidHttpUrl(newDocument.url.trim())) {
-      setError("Certificate URL must be a valid http(s) URL.");
+    if (!supabase || !userId || !newDocument.name.trim()) return;
+    const rawUrl = newDocument.url.trim();
+
+    if (!documentFile && !rawUrl) {
+      setError("Upload a document/image or provide a valid URL.");
       return;
     }
 
+    if (rawUrl && !isValidHttpUrl(rawUrl)) {
+      setError("Document URL must be a valid http(s) URL.");
+      return;
+    }
+
+    setDocumentUploading(Boolean(documentFile));
+
     await runMutation(async () => {
+      const uploadedUrl = documentFile ? await uploadProfileAssetFile(documentFile, "documents") : null;
+      const finalUrl = uploadedUrl ?? rawUrl;
+
       const { error: createError } = await createDocument(supabase, {
         user_id: userId,
         name: newDocument.name.trim(),
-        url: newDocument.url.trim(),
-        type: null,
+        url: finalUrl,
+        type: newDocument.type.trim() || (documentFile ? inferDocumentTypeFromFile(documentFile) : null),
       });
       if (createError) throw createError;
-      setNewDocument({ name: "", url: "" });
+      setNewDocument({ name: "", url: "", type: "" });
+      setDocumentFile(null);
       await reloadBundle(userId);
     }, "Unable to add certificate.");
+
+    setDocumentUploading(false);
+  }
+
+  async function onUploadAvatarFile() {
+    if (!avatarFile || !supabase || !userId) {
+      setError("Select an image before uploading.");
+      return;
+    }
+
+    setAvatarUploading(true);
+    setError(null);
+    setSaveMessage(null);
+
+    try {
+      const uploadedUrl = await uploadProfileAssetFile(avatarFile, "avatars");
+      setProfileForm((prev) => ({ ...prev, avatar_url: uploadedUrl }));
+      setAvatarFile(null);
+      setSaveMessage("Profile image uploaded. Click Save Profile to apply it.");
+    } catch (uploadError) {
+      setError(getErrorMessage(uploadError, "Unable to upload profile image."));
+    } finally {
+      setAvatarUploading(false);
+    }
   }
 
   function onPreviewProfile() {
@@ -584,7 +757,7 @@ export function ProfileModule() {
       appendTerminal(
         "output",
         <div className="space-y-1">
-          <p>Available: help, skills, experience, contact, projects, easter_egg</p>
+          <p>Commands: help, skills, experience, contact, projects, easter_egg</p>
         </div>
       );
       return;
@@ -594,7 +767,7 @@ export function ProfileModule() {
       appendTerminal(
         "output",
         bundle.skills.length === 0 ? (
-          <p>No skills yet. Add one in edit mode.</p>
+          <p>No skills listed yet. Add your top capabilities in edit mode.</p>
         ) : (
           <div className="flex flex-wrap gap-2">
             {bundle.skills.map((skill) => (
@@ -616,7 +789,7 @@ export function ProfileModule() {
       appendTerminal(
         "output",
         bundle.experiences.length === 0 ? (
-          <p>No experience timeline yet.</p>
+          <p>No experience timeline yet. Add at least one role to improve profile depth.</p>
         ) : (
           <div className="space-y-1">
             {bundle.experiences.map((item, idx) => (
@@ -655,7 +828,7 @@ export function ProfileModule() {
       appendTerminal(
         "output",
         bundle.projects.length === 0 ? (
-          <p>No pinned projects yet.</p>
+          <p>No projects pinned yet. Add one strong project to showcase outcomes.</p>
         ) : (
           <div className="space-y-1">
             {bundle.projects.slice(0, 6).map((item) => (
@@ -683,7 +856,7 @@ System joke: recruiter.exe found your profile and crashed from too much talent.`
       return;
     }
 
-    appendTerminal("error", "bash: sudo hire-me: permission granted 🎉");
+    appendTerminal("error", "Command not recognized. Run help to see available options.");
   }
 
   function onTerminalSubmit(event: FormEvent<HTMLFormElement>) {
@@ -737,7 +910,20 @@ System joke: recruiter.exe found your profile and crashed from too much talent.`
   }
 
   if (loading) {
-    return <div className="rounded-2xl border border-border bg-card p-6 text-muted-foreground">{t("loading")}</div>;
+    return (
+      <div className="ui-skeleton rounded-2xl p-6">
+        <div className="space-y-3">
+          <div className="ui-skeleton-line h-7 w-1/3" />
+          <div className="ui-skeleton-line w-2/3" />
+        </div>
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="ui-skeleton h-24" />
+          <div className="ui-skeleton h-24" />
+          <div className="ui-skeleton h-24" />
+        </div>
+        <p className="mt-4 text-sm text-slate-400">{t("loading") || "Loading profile workspace..."}</p>
+      </div>
+    );
   }
 
   if (error && !userId) {
@@ -745,18 +931,18 @@ System joke: recruiter.exe found your profile and crashed from too much talent.`
   }
 
   return (
-    <div className="relative mx-auto max-w-[1180px] space-y-7 pb-8 text-slate-100">
+    <div className="relative mx-auto max-w-[1180px] space-y-6 pb-8 text-slate-100 lg:space-y-7">
       <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-3xl">
-        <div className="absolute -top-24 left-8 h-72 w-72 rounded-full blur-3xl" style={{ background: "rgba(34,211,238,0.15)" }} />
-        <div className="absolute right-[-120px] top-24 h-80 w-80 rounded-full bg-cyan-400/10 blur-3xl" />
-        <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] [background-size:24px_24px] opacity-20" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(34,211,238,0.15),transparent_45%),radial-gradient(circle_at_80%_70%,rgba(34,211,238,0.08),transparent_42%)]" />
+        <div className="absolute -top-24 left-8 h-64 w-64 rounded-full blur-3xl" style={{ background: "rgba(34,211,238,0.11)" }} />
+        <div className="absolute right-[-120px] top-24 h-72 w-72 rounded-full bg-cyan-400/10 blur-3xl" />
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.025)_1px,transparent_1px)] [background-size:24px_24px] opacity-12" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(34,211,238,0.12),transparent_42%),radial-gradient(circle_at_80%_70%,rgba(34,211,238,0.06),transparent_42%)]" />
         {!reduceMotion && (
-          <div className="absolute inset-0 hidden md:block">
+          <div className="absolute inset-0 hidden xl:block">
             {heroCodeSnippets.map((snippet) => (
               <span
                 key={snippet.text}
-                className={cn("absolute rounded-full border border-cyan-300/25 bg-[#081323]/70 px-3 py-1 text-[10px] uppercase tracking-[0.2em] text-cyan-200/75", snippet.pos, snippet.motion)}
+                className={cn("absolute rounded-full border border-cyan-300/20 bg-[#081323]/55 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-cyan-100/65", snippet.pos, snippet.motion)}
                 style={{ animationDelay: snippet.delay }}
               >
                 {snippet.text}
@@ -767,16 +953,16 @@ System joke: recruiter.exe found your profile and crashed from too much talent.`
       </div>
 
       <RevealPanel reduceMotion={reduceMotion} className="relative z-10">
-        <section className="overflow-hidden rounded-3xl border border-cyan-400/20 bg-[#070d16]/95 shadow-[0_30px_80px_rgba(0,0,0,0.55)] backdrop-blur-xl">
-          <div className="grid gap-6 p-6 lg:grid-cols-[1.2fr_0.8fr]">
-            <div className="space-y-5">
-              <div className="inline-flex items-center gap-2 rounded-full border border-cyan-300/40 bg-cyan-500/10 px-3 py-1 text-[11px] uppercase tracking-[0.2em] text-cyan-200">
+        <section className={cn(PANEL_SURFACE, "overflow-hidden")}>
+          <div className="grid gap-6 p-6 lg:grid-cols-[1.15fr_0.85fr] lg:p-7">
+            <div className="space-y-4 lg:space-y-5">
+              <div className="inline-flex items-center gap-2 rounded-full border border-cyan-300/35 bg-cyan-500/10 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-cyan-200">
                 <span className="h-2 w-2 rounded-full bg-cyan-300 animate-pulse" />
                 Developer Profile
               </div>
 
-              <div className="flex flex-wrap items-start gap-4">
-                <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-2xl border border-cyan-300/30 bg-[#0b1524]">
+              <div className="flex flex-wrap items-start gap-4 lg:gap-5">
+                <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-2xl border border-cyan-300/25 bg-[#0b1524] shadow-[0_10px_24px_rgba(0,0,0,0.35)]">
                   {profileForm.avatar_url ? (
                     // eslint-disable-next-line @next/next/no-img-element -- Avatar URLs are user-provided and may not be in a fixed Next image allowlist.
                     <img src={profileForm.avatar_url} alt="avatar" className="h-full w-full object-cover" />
@@ -790,108 +976,116 @@ System joke: recruiter.exe found your profile and crashed from too much talent.`
                   )}
                 </div>
 
-                <div className="min-w-[220px] flex-1">
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Profile visibility for hiring teams</p>
                   <h1
-                    className="text-4xl leading-none md:text-5xl"
+                    className="mt-2 text-3xl leading-tight md:text-4xl"
                     style={{ fontFamily: '"Space Grotesk", "Sora", "Avenir Next", sans-serif', letterSpacing: "-0.02em" }}
                   >
                     {profileForm.full_name || "Unnamed Developer"}
                   </h1>
-                  <p className="mt-2 text-sm text-cyan-200/90" style={{ fontFamily: '"IBM Plex Mono", "JetBrains Mono", monospace' }}>
+                  <p className="mt-1 text-sm text-cyan-200/90" style={{ fontFamily: '"IBM Plex Mono", "JetBrains Mono", monospace' }}>
                     @{profileForm.username || "username"}
                   </p>
                   <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300" style={{ fontFamily: '"IBM Plex Mono", "JetBrains Mono", monospace' }}>
-                    {profileForm.bio || "Write a bold summary in edit mode to define your craft, speed, and edge."}
+                    {profileForm.bio || "Add a concise professional summary that highlights your role focus, strongest outcomes, and career direction."}
                   </p>
                 </div>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-3">
                 {[
-                  { label: "Completion", value: `${completion}%` },
-                  { label: "Projects", value: `${bundle.projects.length}` },
-                  { label: "Certificates", value: `${certificates.length}` },
+                  { label: "Profile Strength", value: `${completion}%`, hint: "Readiness score" },
+                  { label: "Projects", value: `${bundle.projects.length}`, hint: "Proof of work" },
+                  { label: "Certificates", value: `${certificates.length}`, hint: "Verified learning" },
                 ].map((item) => (
-                  <article key={item.label} className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
-                    <p className="text-xs uppercase tracking-[0.2em] text-slate-400">{item.label}</p>
+                  <article key={item.label} className={cn(PANEL_SOFT, "p-3.5")}> 
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-slate-400">{item.label}</p>
                     <p
                       className="mt-1 text-2xl font-semibold"
                       style={{ color: ACCENT, fontFamily: '"Space Grotesk", "Sora", sans-serif' }}
                     >
                       {item.value}
                     </p>
+                    <p className="mt-1 text-xs text-slate-400">{item.hint}</p>
                   </article>
                 ))}
               </div>
 
-              <div className="flex flex-wrap gap-3">
+              <div className="flex flex-wrap items-center gap-2.5">
                 <button
                   type="button"
                   onClick={() => {
                     setIsEditing((prev) => !prev);
                     setSaveMessage(null);
                   }}
-                  className="inline-flex items-center gap-2 rounded-xl border border-cyan-300/40 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-200 transition-all hover:bg-cyan-500/20"
+                  className="inline-flex h-10 items-center gap-2 rounded-xl border border-cyan-300/40 bg-cyan-500/10 px-4 text-sm font-semibold text-cyan-200 transition-all hover:bg-cyan-500/20"
                 >
                   <Pencil size={16} />
-                  {isEditing ? "Close Edit" : "Edit Profile"}
+                  {isEditing ? "Close Editor" : "Edit Profile"}
                 </button>
 
                 <button
                   type="button"
                   onClick={onPreviewProfile}
-                  className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold text-slate-200 transition-all hover:border-cyan-300/40 hover:text-cyan-200"
+                  className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 text-sm font-semibold text-slate-200 transition-all hover:border-cyan-300/40 hover:text-cyan-200"
                 >
                   <Eye size={16} />
-                  Preview
+                  Preview Public Page
                 </button>
 
                 <button
                   type="button"
                   onClick={onSaveProfile}
                   disabled={saving}
-                  className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-[#03111a] transition-all disabled:opacity-60"
+                  className="inline-flex h-10 items-center gap-2 rounded-xl px-4 text-sm font-semibold text-[#03111a] shadow-[0_8px_24px_rgba(34,211,238,0.35)] transition-all hover:brightness-105 disabled:opacity-60"
                   style={{ background: ACCENT }}
                 >
                   <Save size={16} />
-                  {saving ? t("saving") : "Save"}
+                  {saving ? t("saving") : "Save Profile"}
                 </button>
               </div>
 
-              <div className="h-1.5 overflow-hidden rounded-full bg-slate-800">
+              <div>
+                <div className="mb-1 flex items-center justify-between text-xs text-slate-400">
+                  <span>Profile completion</span>
+                  <span>{completion}%</span>
+                </div>
+                <div className="h-1.5 overflow-hidden rounded-full bg-slate-800">
                 <div className="h-full rounded-full transition-all duration-700" style={{ width: `${completion}%`, background: ACCENT }} />
+                </div>
               </div>
 
               {saveMessage ? <div className="rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">{saveMessage}</div> : null}
               {error ? <div className="rounded-xl border border-red-400/30 bg-red-500/10 px-3 py-2 text-sm text-red-200">{error}</div> : null}
             </div>
 
-            <div className="relative overflow-hidden rounded-2xl border border-cyan-300/20 bg-[#050a12] shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
-              <div className="flex items-center justify-between border-b border-cyan-300/20 px-4 py-2">
-                <div className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-cyan-200">
+            <div className="relative overflow-hidden rounded-2xl border border-cyan-300/15 bg-[#060d18]/95 shadow-[0_16px_36px_rgba(0,0,0,0.4)]">
+              <div className="flex items-center justify-between border-b border-cyan-300/15 px-4 py-2.5">
+                <div className="inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.16em] text-slate-300">
                   <TerminalSquare size={14} />
-                  dev-terminal
+                  Profile Console
                 </div>
                 <div className="flex gap-1.5">
-                  <span className="h-2 w-2 rounded-full bg-red-400" />
-                  <span className="h-2 w-2 rounded-full bg-amber-300" />
-                  <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                  <span className="h-2 w-2 rounded-full bg-red-400/80" />
+                  <span className="h-2 w-2 rounded-full bg-amber-300/80" />
+                  <span className="h-2 w-2 rounded-full bg-emerald-400/80" />
                 </div>
               </div>
 
-              <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px)] [background-size:100%_3px] opacity-20" />
+              <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.015)_1px,transparent_1px)] [background-size:100%_3px] opacity-15" />
 
               <div
                 ref={terminalViewportRef}
-                className="relative h-[320px] overflow-y-auto px-4 py-3 text-sm"
-                style={{ fontFamily: '"IBM Plex Mono", "JetBrains Mono", monospace', color: "#8af3c5" }}
+                className="relative h-[292px] overflow-y-auto px-4 py-3 text-[13px]"
+                style={{ fontFamily: '"IBM Plex Mono", "JetBrains Mono", monospace', color: "#88d5c3" }}
               >
                 {terminalEntries.map((entry) => (
                   <div
                     key={entry.id}
                     className={cn(
                       "mb-2 leading-relaxed",
-                      entry.kind === "command" && "text-cyan-200",
+                      entry.kind === "command" && "text-cyan-100",
                       entry.kind === "error" && "text-amber-300"
                     )}
                   >
@@ -900,26 +1094,26 @@ System joke: recruiter.exe found your profile and crashed from too much talent.`
                 ))}
 
                 {!terminalReady && terminalBootText ? (
-                  <div className="text-cyan-200">
+                  <div className="text-cyan-100">
                     {terminalBootText}
-                    <span className="ml-1 inline-block h-4 w-[7px] animate-pulse bg-cyan-200 align-middle" />
+                    <span className="ml-1 inline-block h-4 w-[7px] animate-pulse bg-cyan-100 align-middle" />
                   </div>
                 ) : null}
               </div>
 
-              <form onSubmit={onTerminalSubmit} className="relative border-t border-cyan-300/20 bg-[#050a12] px-4 py-3">
-                <div className="flex items-center gap-2">
-                  <Command size={14} className="text-cyan-300" />
+              <form onSubmit={onTerminalSubmit} className="relative border-t border-cyan-300/15 bg-[#050a12]/90 px-4 py-3">
+                <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-black/25 px-2.5 py-2">
+                  <Command size={14} className="text-cyan-200/85" />
                   <input
                     value={terminalInput}
                     onChange={(event) => setTerminalInput(event.target.value)}
                     disabled={!terminalReady}
-                    placeholder={terminalReady ? "Run command..." : "Booting shell..."}
+                    placeholder={terminalReady ? "Try: help" : "Starting console..."}
                     className="w-full bg-transparent text-sm text-cyan-100 outline-none placeholder:text-slate-500 disabled:opacity-70"
                     style={{ fontFamily: '"IBM Plex Mono", "JetBrains Mono", monospace' }}
                   />
                 </div>
-                <p className="mt-2 text-[11px] uppercase tracking-[0.16em] text-slate-500">Press Enter to execute command</p>
+                <p className="mt-2 text-[11px] uppercase tracking-[0.16em] text-slate-500">Enter to run command</p>
               </form>
             </div>
           </div>
@@ -928,10 +1122,10 @@ System joke: recruiter.exe found your profile and crashed from too much talent.`
 
       {isEditing ? (
         <RevealPanel reduceMotion={reduceMotion} delay={80} className="relative z-10">
-          <section className="rounded-3xl border border-cyan-300/20 bg-[#070d16]/95 p-6 backdrop-blur-xl">
+          <section className={cn(PANEL_SURFACE, "p-6")}>
             <div className="mb-5 flex items-center justify-between">
               <h2 className="text-2xl font-semibold" style={{ fontFamily: '"Space Grotesk", "Sora", sans-serif' }}>
-                Edit Flow Console
+                Profile Editing Console
               </h2>
               <button
                 type="button"
@@ -940,9 +1134,10 @@ System joke: recruiter.exe found your profile and crashed from too much talent.`
                 className="rounded-xl px-4 py-2 text-sm font-semibold text-[#03111a] disabled:opacity-70"
                 style={{ background: ACCENT }}
               >
-                {saving ? t("saving") : "Save Changes"}
+                {saving ? t("saving") : "Save Profile"}
               </button>
             </div>
+            <p className="mb-5 text-sm text-slate-400">Update your profile content and keep your public presentation current.</p>
 
             <div className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
               <div className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
@@ -964,8 +1159,30 @@ System joke: recruiter.exe found your profile and crashed from too much talent.`
                 <input
                   value={profileForm.avatar_url}
                   onChange={(event) => setProfileForm((prev) => ({ ...prev, avatar_url: event.target.value }))}
+                  placeholder="https://..."
                   className="w-full rounded-xl border border-white/15 bg-[#060b14] px-3 py-2 text-sm outline-none focus:border-cyan-300/40"
                 />
+
+                <div className="rounded-xl border border-white/10 bg-[#060b14]/70 p-3">
+                  <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Upload profile image</p>
+                  <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto]">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(event) => setAvatarFile(event.target.files?.[0] ?? null)}
+                      className="rounded-lg border border-white/15 bg-[#060b14] px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-cyan-500/20 file:px-2 file:py-1 file:text-xs file:text-cyan-100"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void onUploadAvatarFile()}
+                      disabled={!avatarFile || avatarUploading}
+                      className="rounded-lg bg-cyan-400/20 px-3 py-2 text-sm text-cyan-200 disabled:opacity-60"
+                    >
+                      {avatarUploading ? "Uploading..." : "Upload Image"}
+                    </button>
+                  </div>
+                  <p className="mt-2 text-xs text-slate-500">PNG/JPG/WebP up to 10MB.</p>
+                </div>
 
                 <label className="block text-xs uppercase tracking-[0.2em] text-slate-400">Bio</label>
                 <textarea
@@ -982,7 +1199,7 @@ System joke: recruiter.exe found your profile and crashed from too much talent.`
                     onChange={(event) => setProfileForm((prev) => ({ ...prev, is_public: event.target.checked }))}
                     className="h-4 w-4 rounded border-white/20 bg-[#060b14]"
                   />
-                  Enable public profile
+                  Make my portfolio publicly visible
                 </label>
               </div>
 
@@ -993,11 +1210,11 @@ System joke: recruiter.exe found your profile and crashed from too much talent.`
                     <input
                       value={newSkill.name}
                       onChange={(event) => setNewSkill((prev) => ({ ...prev, name: event.target.value }))}
-                      placeholder="Skill"
+                      placeholder="Skill name"
                       className="w-full rounded-lg border border-white/15 bg-[#060b14] px-3 py-2 text-sm"
                     />
                     <button type="button" onClick={onAddSkill} className="rounded-lg bg-cyan-400/20 px-3 py-2 text-sm text-cyan-200">
-                      Add
+                      Add Skill
                     </button>
                   </div>
                 </article>
@@ -1033,7 +1250,7 @@ System joke: recruiter.exe found your profile and crashed from too much talent.`
                       className="w-full rounded-lg border border-white/15 bg-[#060b14] px-3 py-2 text-sm"
                     />
                     <button type="button" onClick={onAddProject} className="rounded-lg bg-cyan-400/20 px-3 py-2 text-sm text-cyan-200">
-                      Add
+                      Add Project
                     </button>
                   </div>
                 </article>
@@ -1044,18 +1261,31 @@ System joke: recruiter.exe found your profile and crashed from too much talent.`
                     <input
                       value={newDocument.name}
                       onChange={(event) => setNewDocument((prev) => ({ ...prev, name: event.target.value }))}
-                      placeholder="Certificate title"
+                      placeholder="Document title"
                       className="rounded-lg border border-white/15 bg-[#060b14] px-3 py-2 text-sm"
                     />
                     <input
                       value={newDocument.url}
                       onChange={(event) => setNewDocument((prev) => ({ ...prev, url: event.target.value }))}
-                      placeholder="Verify URL"
+                      placeholder="Document URL (optional if file uploaded)"
                       className="rounded-lg border border-white/15 bg-[#060b14] px-3 py-2 text-sm"
                     />
-                    <button type="button" onClick={onAddDocument} className="rounded-lg bg-cyan-400/20 px-3 py-2 text-sm text-cyan-200">
-                      Add Certificate
+                    <input
+                      value={newDocument.type}
+                      onChange={(event) => setNewDocument((prev) => ({ ...prev, type: event.target.value }))}
+                      placeholder="Type (certificate, image, transcript, etc)"
+                      className="rounded-lg border border-white/15 bg-[#060b14] px-3 py-2 text-sm"
+                    />
+                    <input
+                      type="file"
+                      accept="image/*,.pdf,.doc,.docx,.txt,.rtf"
+                      onChange={(event) => setDocumentFile(event.target.files?.[0] ?? null)}
+                      className="rounded-lg border border-white/15 bg-[#060b14] px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-cyan-500/20 file:px-2 file:py-1 file:text-xs file:text-cyan-100"
+                    />
+                    <button type="button" onClick={onAddDocument} disabled={documentUploading} className="rounded-lg bg-cyan-400/20 px-3 py-2 text-sm text-cyan-200 disabled:opacity-60">
+                      {documentUploading ? "Uploading..." : "Add Document"}
                     </button>
+                    <p className="text-xs text-slate-500">Upload certificate/document image OR provide URL.</p>
                   </div>
                 </article>
               </div>
@@ -1066,16 +1296,17 @@ System joke: recruiter.exe found your profile and crashed from too much talent.`
 
       <RevealPanel reduceMotion={reduceMotion} delay={140} className="relative z-10">
         <section className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
-          <article className="rounded-3xl border border-cyan-300/20 bg-[#070d16]/95 p-5">
+          <article className={cn(PANEL_SURFACE, "p-5")}>
             <h3 className="text-2xl font-semibold" style={{ fontFamily: '"Space Grotesk", "Sora", sans-serif' }}>
               Experience Timeline
             </h3>
+            <p className="mt-1 text-sm text-slate-400">Recent roles, impact, and career progression.</p>
             <div className="mt-4 space-y-3">
               {bundle.experiences.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-white/15 p-4 text-sm text-slate-400">No experience entries yet.</div>
+                <div className={EMPTY_STATE}>No experience added yet. Add your latest role in edit mode so recruiters can quickly understand your progression.</div>
               ) : (
                 bundle.experiences.map((item) => (
-                  <div key={item.id} className="group relative rounded-xl border border-white/10 bg-white/[0.02] p-4 transition-all hover:border-cyan-300/35 hover:bg-white/[0.05]">
+                  <div key={item.id} className="group relative rounded-2xl border border-white/10 bg-white/[0.02] p-4 transition-all hover:border-cyan-300/30 hover:bg-white/[0.05]">
                     <div className="absolute left-3 top-4 h-[calc(100%-1.25rem)] w-[2px] bg-gradient-to-b from-cyan-300/80 to-transparent" />
                     <div className="pl-5">
                       <p className="text-sm uppercase tracking-[0.16em] text-slate-400">{item.start_date || "Start"} - {item.end_date || "Current"}</p>
@@ -1095,18 +1326,19 @@ System joke: recruiter.exe found your profile and crashed from too much talent.`
             </div>
           </article>
 
-          <article className="rounded-3xl border border-cyan-300/20 bg-[#070d16]/95 p-5">
+          <article className={cn(PANEL_SURFACE, "p-5")}>
             <h3 className="text-2xl font-semibold" style={{ fontFamily: '"Space Grotesk", "Sora", sans-serif' }}>
               Skill Cloud
             </h3>
+            <p className="mt-1 text-sm text-slate-400">Core strengths and tools you can apply immediately.</p>
             <div className="mt-4 flex flex-wrap gap-2">
               {bundle.skills.length === 0 ? (
-                <p className="text-sm text-slate-400">No skills added yet.</p>
+                <p className={EMPTY_STATE}>No skills added yet. Add 5-8 targeted skills to improve matching and profile credibility.</p>
               ) : (
                 bundle.skills.map((skill) => (
                   <span
                     key={skill.id}
-                    className="inline-flex items-center gap-2 rounded-full border border-cyan-300/35 bg-cyan-400/10 px-3 py-1 text-sm text-cyan-200 transition-all hover:-translate-y-0.5"
+                    className="inline-flex items-center gap-2 rounded-full border border-cyan-300/35 bg-cyan-400/10 px-3 py-1.5 text-sm text-cyan-200 transition-all hover:-translate-y-0.5"
                   >
                     {skill.name}
                     <button type="button" onClick={() => void onDeleteSkill(skill.id)} className="text-cyan-100/70 hover:text-red-300">
@@ -1117,11 +1349,11 @@ System joke: recruiter.exe found your profile and crashed from too much talent.`
               )}
             </div>
 
-            <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-              <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Contact Nodes</p>
+            <div className={cn(PANEL_SOFT, "mt-6 p-4")}>
+              <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Contact Channels</p>
               <div className="mt-3 space-y-2 text-sm">
                 {contactLinks.map((item) => (
-                  <a key={item.href} href={item.href} target="_blank" rel="noreferrer" className="block underline decoration-cyan-400/60 underline-offset-4 hover:text-cyan-200">
+                  <a key={item.href} href={item.href} target="_blank" rel="noreferrer" className="block rounded-lg border border-white/10 px-3 py-2 underline decoration-cyan-400/60 underline-offset-4 hover:border-cyan-300/35 hover:text-cyan-200">
                     {item.label}: {item.href}
                   </a>
                 ))}
@@ -1132,17 +1364,20 @@ System joke: recruiter.exe found your profile and crashed from too much talent.`
       </RevealPanel>
 
       <RevealPanel reduceMotion={reduceMotion} delay={200} className="relative z-10">
-        <section className="rounded-3xl border border-cyan-300/20 bg-[#070d16]/95 p-5">
+        <section className={cn(PANEL_SURFACE, "p-5")}>
           <div className="mb-4 flex items-center justify-between">
             <h3 className="text-2xl font-semibold" style={{ fontFamily: '"Space Grotesk", "Sora", sans-serif' }}>
               GitHub Runway
             </h3>
-            <span className="text-xs uppercase tracking-[0.2em] text-slate-400">Live reel</span>
+            <span className="text-xs uppercase tracking-[0.2em] text-slate-400">Project proof</span>
           </div>
+          <p className="mb-4 text-sm text-slate-400">Showcase meaningful builds with concise outcome-focused descriptions.</p>
 
           <div className="overflow-x-auto pb-2">
             <div className="flex min-w-max gap-4">
-              {(bundle.projects.length > 0 ? bundle.projects : [{ id: "placeholder", title: "Add your first project", description: "Show your strongest build.", url: null, user_id: "", start_date: null, end_date: null }]).map((project, index) => {
+              {(bundle.projects.length > 0
+                ? bundle.projects
+                : [{ id: "placeholder", title: "Add your first flagship project", description: "Include one project with clear impact, metrics, and your specific contribution.", url: null, user_id: "", start_date: null, end_date: null }]).map((project, index) => {
                 const stars = pseudoCount(project.title, 18, 210);
                 const forks = pseudoCount(project.title + "forks", 5, 90);
                 const language = inferPrimaryLanguage(project as Project);
@@ -1163,7 +1398,7 @@ System joke: recruiter.exe found your profile and crashed from too much talent.`
                       className="group relative w-[320px] overflow-hidden rounded-2xl border border-white/10 bg-[#0a1220] p-[1px]"
                     >
                       <div className="pointer-events-none absolute inset-0 rounded-2xl opacity-0 transition-opacity duration-500 group-hover:opacity-100">
-                        <div className="h-full w-full rounded-2xl bg-[conic-gradient(from_0deg,rgba(34,211,238,0),rgba(34,211,238,0.95),rgba(20,184,166,0.9),rgba(34,211,238,0.95),rgba(34,211,238,0))] animate-[rgb-border-spin_4.5s_linear_infinite]" />
+                        <div className="h-full w-full rounded-2xl bg-[linear-gradient(135deg,rgba(34,211,238,0.28),rgba(20,184,166,0.2),rgba(34,211,238,0))]" />
                       </div>
                       <div
                         className="relative h-full rounded-2xl border border-transparent bg-[#0b1524] p-4 transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]"
@@ -1173,7 +1408,7 @@ System joke: recruiter.exe found your profile and crashed from too much talent.`
                           {project.title}
                         </p>
                         <p className="mt-2 line-clamp-3 text-sm text-slate-300">
-                          {project.description || "No description yet. Add one in edit mode for stronger storytelling."}
+                          {project.description || "Add a short impact summary in edit mode so reviewers can quickly evaluate your contribution."}
                         </p>
 
                         <div className="mt-4 flex flex-wrap items-center gap-2 text-xs">
@@ -1190,19 +1425,19 @@ System joke: recruiter.exe found your profile and crashed from too much talent.`
                           href={project.url || "#"}
                           target="_blank"
                           rel="noreferrer"
-                          className="mt-5 inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-[#02131d] shadow-[0_0_25px_rgba(34,211,238,0.4)] transition hover:brightness-110"
+                          className="mt-5 inline-flex h-9 items-center gap-2 rounded-lg px-3 text-sm font-semibold text-[#02131d] shadow-[0_0_18px_rgba(34,211,238,0.35)] transition hover:brightness-110"
                           style={{ background: ACCENT }}
                         >
                           <Github size={14} />
-                          View on GitHub
+                          Open Repository
                         </a>
 
                         <button
                           type="button"
                           onClick={() => void onDeleteProject(project.id)}
-                          className="ml-2 mt-5 inline-flex items-center rounded-lg border border-red-300/35 px-3 py-2 text-sm text-red-200"
+                          className="ml-2 mt-5 inline-flex h-9 items-center rounded-lg border border-red-300/35 px-3 text-sm text-red-200"
                         >
-                          Remove
+                          Remove Project
                         </button>
                       </div>
                     </article>
@@ -1216,24 +1451,25 @@ System joke: recruiter.exe found your profile and crashed from too much talent.`
             <input
               value={newProject.title}
               onChange={(event) => setNewProject((prev) => ({ ...prev, title: event.target.value }))}
-              placeholder="Add quick project title"
+              placeholder="Add project title"
               className="w-full rounded-xl border border-white/15 bg-[#060b14] px-3 py-2 text-sm"
             />
             <button type="button" onClick={onAddProject} className="rounded-xl bg-cyan-400/20 px-4 py-2 text-sm font-semibold text-cyan-200">
-              Add
+              Add Project
             </button>
           </div>
         </section>
       </RevealPanel>
 
       <RevealPanel reduceMotion={reduceMotion} delay={260} className="relative z-10">
-        <section className="rounded-3xl border border-cyan-300/20 bg-[#070d16]/95 p-5">
+        <section className={cn(PANEL_SURFACE, "p-5")}>
           <div className="mb-4 flex items-center justify-between">
             <h3 className="text-2xl font-semibold" style={{ fontFamily: '"Space Grotesk", "Sora", sans-serif' }}>
               Certificate Motion Gallery
             </h3>
-            <span className="text-xs uppercase tracking-[0.2em] text-slate-400">Certified feed</span>
+            <span className="text-xs uppercase tracking-[0.2em] text-slate-400">Credentials</span>
           </div>
+          <p className="mb-4 text-sm text-slate-400">Verification links make your learning and specialization easy to trust.</p>
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {(certificates.length > 0
@@ -1242,7 +1478,7 @@ System joke: recruiter.exe found your profile and crashed from too much talent.`
                   {
                     id: "placeholder-cert",
                     user_id: "",
-                    name: "Add your first certificate",
+                    name: "Add your first verified credential",
                     url: "",
                     type: "Issuer",
                   },
@@ -1254,12 +1490,12 @@ System joke: recruiter.exe found your profile and crashed from too much talent.`
               return (
                 <article
                   key={certificate.id}
-                  className="group relative overflow-hidden rounded-2xl border border-white/10 bg-[#0a1220] p-4 transition-all hover:-translate-y-1 hover:shadow-[0_20px_40px_rgba(0,0,0,0.5)]"
+                  className="group relative overflow-hidden rounded-2xl border border-white/10 bg-[#0a1220] p-4 transition-all hover:-translate-y-0.5 hover:shadow-[0_16px_32px_rgba(0,0,0,0.45)]"
                   style={certificateAnimationStyle(index)}
                 >
-                  <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(110deg,transparent_10%,rgba(255,255,255,0.2)_45%,transparent_85%)] translate-x-[-120%] transition-transform duration-700 group-hover:translate-x-[140%]" />
+                  <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(34,211,238,0.08),rgba(255,255,255,0)_58%)]" />
                   <div className="absolute right-3 top-3 rounded-full border border-emerald-300/40 bg-emerald-500/15 px-2 py-1 text-[11px] font-semibold text-emerald-200">
-                    Certified ✓
+                    Verified
                   </div>
 
                   <div className="relative z-10">
@@ -1274,16 +1510,16 @@ System joke: recruiter.exe found your profile and crashed from too much talent.`
                         href={certificate.url || "#"}
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-[#02131d] shadow-[0_0_24px_rgba(34,211,238,0.4)]"
+                        className="inline-flex h-9 items-center gap-2 rounded-lg px-3 text-sm font-semibold text-[#02131d] shadow-[0_0_20px_rgba(34,211,238,0.35)]"
                         style={{ background: ACCENT }}
                       >
                         <BadgeCheck size={14} />
-                        Verify
+                        Verify Credential
                       </a>
                       <button
                         type="button"
                         onClick={() => void onDeleteDocument(certificate.id)}
-                        className="rounded-lg border border-red-300/35 px-3 py-2 text-sm text-red-200"
+                        className="h-9 rounded-lg border border-red-300/35 px-3 text-sm text-red-200"
                       >
                         Remove
                       </button>
@@ -1298,38 +1534,55 @@ System joke: recruiter.exe found your profile and crashed from too much talent.`
             <input
               value={newDocument.name}
               onChange={(event) => setNewDocument((prev) => ({ ...prev, name: event.target.value }))}
-              placeholder="Certificate title"
+              placeholder="Document title"
               className="rounded-xl border border-white/15 bg-[#060b14] px-3 py-2 text-sm"
             />
             <input
               value={newDocument.url}
               onChange={(event) => setNewDocument((prev) => ({ ...prev, url: event.target.value }))}
-              placeholder="Verification URL"
+              placeholder="Document URL (optional if file uploaded)"
               className="rounded-xl border border-white/15 bg-[#060b14] px-3 py-2 text-sm"
             />
-            <button type="button" onClick={onAddDocument} className="rounded-xl bg-cyan-400/20 px-4 py-2 text-sm font-semibold text-cyan-200">
-              Add Certificate
+            <button type="button" onClick={onAddDocument} disabled={documentUploading} className="rounded-xl bg-cyan-400/20 px-4 py-2 text-sm font-semibold text-cyan-200 disabled:opacity-60">
+              {documentUploading ? "Uploading..." : "Add Document"}
             </button>
           </div>
+
+          <div className="mt-2 grid gap-2 md:grid-cols-2">
+            <input
+              value={newDocument.type}
+              onChange={(event) => setNewDocument((prev) => ({ ...prev, type: event.target.value }))}
+              placeholder="Type (certificate, image, transcript, etc)"
+              className="rounded-xl border border-white/15 bg-[#060b14] px-3 py-2 text-sm"
+            />
+            <input
+              type="file"
+              accept="image/*,.pdf,.doc,.docx,.txt,.rtf"
+              onChange={(event) => setDocumentFile(event.target.files?.[0] ?? null)}
+              className="rounded-xl border border-white/15 bg-[#060b14] px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-cyan-500/20 file:px-2 file:py-1 file:text-xs file:text-cyan-100"
+            />
+          </div>
+          <p className="mt-2 text-xs text-slate-500">Upload certificate/document image OR provide URL.</p>
         </section>
       </RevealPanel>
 
       <RevealPanel reduceMotion={reduceMotion} delay={320} className="relative z-10">
         <section className="grid gap-4 lg:grid-cols-2">
-          <article className="rounded-2xl border border-cyan-300/20 bg-[#070d16]/95 p-4">
+          <article className={cn(PANEL_SURFACE, "rounded-2xl p-4") }>
             <h4 className="text-xl font-semibold" style={{ fontFamily: '"Space Grotesk", "Sora", sans-serif' }}>
               Education
             </h4>
+            <p className="mt-1 text-sm text-slate-400">Academic background and formal training.</p>
             <div className="mt-3 space-y-2">
               {bundle.educations.length === 0 ? (
-                <p className="text-sm text-slate-400">No education entries yet.</p>
+                <p className={EMPTY_STATE}>No education details yet. Add your institution to give recruiters essential background context.</p>
               ) : (
                 bundle.educations.map((education) => (
-                  <div key={education.id} className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                  <div key={education.id} className={cn(PANEL_SOFT, "p-3") }>
                     <p className="font-semibold">{education.institution}</p>
                     <p className="text-sm text-slate-400">{education.degree || "Degree pending"}</p>
                     <button type="button" onClick={() => void onDeleteEducation(education.id)} className="mt-2 text-xs text-red-300">
-                      Remove
+                      Remove Entry
                     </button>
                   </div>
                 ))
@@ -1343,15 +1596,16 @@ System joke: recruiter.exe found your profile and crashed from too much talent.`
                 className="w-full rounded-xl border border-white/15 bg-[#060b14] px-3 py-2 text-sm"
               />
               <button type="button" onClick={onAddEducation} className="rounded-xl bg-cyan-400/20 px-4 py-2 text-sm font-semibold text-cyan-200">
-                Add
+                Add Education
               </button>
             </div>
           </article>
 
-          <article className="rounded-2xl border border-cyan-300/20 bg-[#070d16]/95 p-4">
+          <article className={cn(PANEL_SURFACE, "rounded-2xl p-4") }>
             <h4 className="text-xl font-semibold" style={{ fontFamily: '"Space Grotesk", "Sora", sans-serif' }}>
-              Live Contact Deck
+              Professional Contact Links
             </h4>
+            <p className="mt-1 text-sm text-slate-400">Direct ways to review your work or reach out.</p>
             <div className="mt-3 space-y-2 text-sm">
               {contactLinks.map((item) => (
                 <a
@@ -1359,7 +1613,7 @@ System joke: recruiter.exe found your profile and crashed from too much talent.`
                   href={item.href}
                   target="_blank"
                   rel="noreferrer"
-                  className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 transition-all hover:border-cyan-300/35"
+                  className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 transition-all hover:border-cyan-300/35"
                 >
                   <span>{item.label}</span>
                   <ExternalLink size={14} className="text-cyan-300" />

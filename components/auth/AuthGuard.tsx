@@ -1,10 +1,12 @@
 "use client";
 
 import { useSupabase } from "@/components/providers/SupabaseProvider";
+import { useI18n } from "@/components/providers/I18nProvider";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
+  const { t } = useI18n();
   const supabase = useSupabase();
   const router = useRouter();
   const [checking, setChecking] = useState(true);
@@ -44,7 +46,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   }, [supabase, router]);
 
   if (checking) {
-    return <div className="rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground">Checking authentication...</div>;
+    return <div className="rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground">{t("authChecking")}</div>;
   }
 
   return <>{children}</>;

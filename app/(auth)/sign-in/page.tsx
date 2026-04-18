@@ -147,19 +147,20 @@ export default function SignInPage() {
             <div className="relative z-10 mb-8 text-center">
               <h1 className="text-3xl font-black uppercase tracking-tight text-white">{t("signIn")}</h1>
               <p className="mt-2 text-sm font-light text-slate-400">
-                Continue your journey with <span className="font-medium text-blue-400">Chakri AI</span>
+                {t("signInContinueJourney")}
+                <span className="font-medium text-blue-400"> {t("appName")}</span>
               </p>
             </div>
 
             <form onSubmit={onSubmit} className="relative z-10 space-y-6">
               <div className="space-y-2">
                 <label className="ml-1 text-xs font-bold uppercase tracking-widest text-slate-500">
-                  Email Address
+                  {t("emailAddress")}
                 </label>
                 <input
                   type="email"
                   required
-                  placeholder="name@example.com"
+                  placeholder={t("authEmailPlaceholder")}
                   className="w-full rounded-2xl border border-white/5 bg-white/5 px-5 py-4 text-white placeholder:text-slate-600 transition-all focus:border-blue-500/50 focus:bg-white/10 focus:outline-none"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -169,10 +170,10 @@ export default function SignInPage() {
               <div className="space-y-2">
                 <div className="ml-1 flex items-center justify-between">
                   <label className="text-xs font-bold uppercase tracking-widest text-slate-500">
-                    Password
+                    {t("password")}
                   </label>
                   <a href="#" className="text-[10px] uppercase tracking-tighter text-blue-500 hover:underline">
-                    Forgot?
+                    {t("forgotPasswordShort")}
                   </a>
                 </div>
                 <input
@@ -203,9 +204,9 @@ export default function SignInPage() {
 
             <div className="relative z-10 mt-8 text-center">
               <p className="text-sm text-slate-500">
-                New to the platform?
+                {t("newToPlatform")}
                 <a href="/sign-up" className="ml-2 font-bold text-white transition-colors hover:text-blue-400">
-                  Create Account
+                  {t("createAccount")}
                 </a>
               </p>
             </div>

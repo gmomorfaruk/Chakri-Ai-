@@ -69,25 +69,25 @@ export default function SignUpPage() {
             </div>
           </div>
           <h1 className="text-4xl font-bold mb-3">
-            <span className="bg-gradient-to-r from-primary via-blue-500 to-accent bg-clip-text text-transparent">Chakri AI</span>
+            <span className="bg-gradient-to-r from-primary via-blue-500 to-accent bg-clip-text text-transparent">{t("appName")}</span>
           </h1>
-          <p className="text-muted-foreground text-base font-medium">Start Your AI-Powered Career Journey</p>
+          <p className="text-muted-foreground text-base font-medium">{t("signUpJourneyTitle")}</p>
         </div>
 
         {/* Form Card */}
         <div className="group fade-in-scale">
           <div className="rounded-3xl border border-primary/10 bg-gradient-to-br from-card to-card/50 p-10 shadow-2xl backdrop-blur-2xl">
             <h2 className="text-3xl font-bold text-foreground mb-2">{t("signUp")}</h2>
-            <p className="text-muted-foreground text-sm mb-8">Create your account and start growing with AI</p>
+            <p className="text-muted-foreground text-sm mb-8">{t("signUpCreateAccountHint")}</p>
 
             <form onSubmit={onSubmit} className="space-y-6">
               {/* Email input */}
               <div>
-                <label className="block text-sm font-semibold text-foreground mb-3">Email Address</label>
+                <label className="block text-sm font-semibold text-foreground mb-3">{t("emailAddress")}</label>
                 <input
                   type="email"
                   required
-                  placeholder="you@example.com"
+                  placeholder={t("authEmailPlaceholderAlt")}
                   className="w-full rounded-xl border border-primary/20 bg-primary/5 px-5 py-3.5 text-sm font-medium placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/30 transition-all duration-300 hover:border-primary/40"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -96,7 +96,7 @@ export default function SignUpPage() {
 
               {/* Password input */}
               <div>
-                <label className="block text-sm font-semibold text-foreground mb-3">Password</label>
+                <label className="block text-sm font-semibold text-foreground mb-3">{t("password")}</label>
                 <input
                   type="password"
                   required
@@ -106,7 +106,7 @@ export default function SignUpPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                 />
-                <p className="mt-2.5 text-xs text-muted-foreground font-medium">Minimum 6 characters</p>
+                <p className="mt-2.5 text-xs text-muted-foreground font-medium">{t("minimumSixChars")}</p>
               </div>
 
               {/* Error message */}
@@ -153,7 +153,7 @@ export default function SignUpPage() {
               </div>
               <div className="relative flex justify-center text-sm">
                 <span className="px-3 bg-gradient-to-br from-card to-card/50 text-muted-foreground font-medium">
-                  Already have an account?
+                  {t("alreadyHaveAccount")}
                 </span>
               </div>
             </div>
@@ -163,14 +163,14 @@ export default function SignUpPage() {
               href="/sign-in"
               className="block w-full text-center px-6 py-4 rounded-xl border-2 border-primary/30 bg-gradient-to-r from-primary/5 to-accent/5 hover:from-primary/10 hover:to-accent/10 font-semibold text-base text-primary hover:text-accent transition-all duration-300 hover:border-primary/60"
             >
-              Sign In Instead
+              {t("signInInstead")}
             </a>
           </div>
         </div>
 
         {/* Footer text */}
         <p className="text-center text-xs text-muted-foreground mt-8 font-medium">
-          By signing up, you agree to our Terms of Service and Privacy Policy
+          {t("signUpTermsAgreement")}
         </p>
       </div>
     </main>

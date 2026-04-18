@@ -14,35 +14,62 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     <NextThemesProvider attribute="class" defaultTheme="dark" enableSystem={false} themes={["dark", "light"]}>
       <style jsx global>{`
         .${CHAKRI_TOKEN_CLASS} {
-          --bg: #080c14;
-          --bg2: #0e1420;
-          --bg3: #131926;
-          --bg4: #1a2133;
-          --bg5: #1f2940;
-          --border: #1e2a3d;
-          --border2: #263347;
-          --border3: #2e3d57;
-          --text: #e8eef8;
-          --text2: #8a9ab5;
-          --text3: #4d6080;
-          --blue: #4f8ef7;
-          --blue2: #3a7af0;
-          --blue-dim: #0d1e3d;
-          --blue-bright: #7aaeff;
-          --cyan: #38bdf8;
+          --bg: #edf4ff;
+          --bg2: #f7fbff;
+          --bg3: #ffffff;
+          --bg4: #e4eefb;
+          --bg5: #dbe8f8;
+          --border: #cfdbec;
+          --border2: #b8cae2;
+          --border3: #9fb6d5;
+          --text: #0f172a;
+          --text2: #4f637d;
+          --text3: #71839b;
+          --blue: #0284c7;
+          --blue2: #2563eb;
+          --blue-dim: #d8ebff;
+          --blue-bright: #0ea5e9;
+          --cyan: #06b6d4;
+          --green: #10b981;
+          --green-dim: #dcfce7;
+          --amber: #f59e0b;
+          --amber-dim: #fef3c7;
+          --red: #ef4444;
+          --red-dim: #fee2e2;
+          --purple: #7c3aed;
+          --purple-dim: #ede9fe;
+        }
+
+        .dark .${CHAKRI_TOKEN_CLASS} {
+          --bg: #070b13;
+          --bg2: #0d1424;
+          --bg3: #121a2d;
+          --bg4: #19243a;
+          --bg5: #1f2a43;
+          --border: #24324a;
+          --border2: #2e3d57;
+          --border3: #374967;
+          --text: #ebf1fb;
+          --text2: #9aabc5;
+          --text3: #6f819b;
+          --blue: #38bdf8;
+          --blue2: #3b82f6;
+          --blue-dim: #0d1d34;
+          --blue-bright: #7dd3fc;
+          --cyan: #22d3ee;
           --green: #34d399;
-          --green-dim: #0a2019;
+          --green-dim: #0b2119;
           --amber: #fbbf24;
-          --amber-dim: #1f1500;
+          --amber-dim: #211602;
           --red: #f87171;
-          --red-dim: #1f0a0a;
+          --red-dim: #220d0d;
           --purple: #a78bfa;
-          --purple-dim: #18102f;
+          --purple-dim: #191133;
         }
 
         .chakri-shell {
           color: var(--text);
-          background: var(--bg);
+          background: linear-gradient(180deg, var(--bg), var(--bg2) 70%);
           font-family: "Inter", system-ui, -apple-system, sans-serif;
         }
 
@@ -74,9 +101,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         }
 
         .chakri-shell .card {
-          background: var(--bg2);
-          border: 1px solid var(--border);
+          background: linear-gradient(145deg, color-mix(in srgb, var(--bg3) 90%, transparent), color-mix(in srgb, var(--bg2) 92%, transparent));
+          border: 1px solid color-mix(in srgb, var(--border2) 60%, transparent);
           border-radius: 12px;
+          box-shadow: 0 14px 34px color-mix(in srgb, var(--bg) 45%, transparent);
+          backdrop-filter: blur(10px);
         }
 
         .chakri-shell .pill {
@@ -84,11 +113,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         }
 
         .chakri-shell .btn {
-          transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+          transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
         }
 
         .chakri-shell .btn:hover {
-          transform: translateY(-1px);
+          transform: translateY(-1px) scale(1.02);
         }
 
         .chakri-shell .session-dot {

@@ -15,6 +15,11 @@ import {
   getSecurityEventsForAdmin,
   logActivity,
 } from "@/lib/notificationsService";
+import {
+  getPendingApprovalRequestsForAdmin,
+  moderateApprovalRequest,
+} from "@/lib/adminApprovalService";
+import { AdminApprovalRequest, AdminApprovalRequestType } from "@/types/admin";
 import { Job, JobPost } from "@/types/jobs";
 import { ActivityLog, SecurityEvent } from "@/types/notifications";
 import {
@@ -55,6 +60,9 @@ type ToastItem = {
 
 type DashboardMetrics = {
   pendingJobs: number;
+  pendingApprovals: number;
+  approvedApprovals: number;
+  rejectedApprovals: number;
   approvedJobs: number;
   rejectedJobs: number;
   totalUsers: number;
@@ -64,6 +72,9 @@ type DashboardMetrics = {
 
 const emptyMetrics: DashboardMetrics = {
   pendingJobs: 0,
+  pendingApprovals: 0,
+  approvedApprovals: 0,
+  rejectedApprovals: 0,
   approvedJobs: 0,
   rejectedJobs: 0,
   totalUsers: 0,
@@ -84,6 +95,7 @@ export function AdminModule() {
 
   const [pendingPosts, setPendingPosts] = useState<JobPost[]>([]);
   const [pendingJobs, setPendingJobs] = useState<Job[]>([]);
+  const [approvalRequests, setApprovalRequests] = useState<AdminApprovalRequest[]>([]);
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [securityEvents, setSecurityEvents] = useState<SecurityEvent[]>([]);
   const [metrics, setMetrics] = useState<DashboardMetrics>(emptyMetrics);
@@ -153,10 +165,13 @@ export function AdminModule() {
       pendingJobsRes,
       logsRes,
       secRes,
+      approvalsRes,
       approvedPostsCountRes,
       approvedJobsCountRes,
       rejectedPostsCountRes,
       rejectedJobsCountRes,
+      approvedApprovalsCountRes,
+      rejectedApprovalsCountRes,
       profilesCountRes,
       applicationsCountRes,
     ] = await Promise.all([
@@ -164,22 +179,29 @@ export function AdminModule() {
       getPendingJobsForAdmin(supabase),
       getActivityLogsForAdmin(supabase, 80),
       getSecurityEventsForAdmin(supabase, 40),
+      getPendingApprovalRequestsForAdmin(supabase, 80),
       supabase.from("job_posts").select("*", { count: "exact", head: true }).eq("status", "approved"),
       supabase.from("jobs").select("*", { count: "exact", head: true }).eq("status", "approved"),
       supabase.from("job_posts").select("*", { count: "exact", head: true }).eq("status", "rejected"),
       supabase.from("jobs").select("*", { count: "exact", head: true }).eq("status", "rejected"),
+      supabase.from("admin_approval_requests").select("*", { count: "exact", head: true }).eq("status", "approved"),
+      supabase.from("admin_approval_requests").select("*", { count: "exact", head: true }).eq("status", "rejected"),
       supabase.from("profiles").select("*", { count: "exact", head: true }),
       supabase.from("job_applications").select("*", { count: "exact", head: true }),
     ]);
 
     setPendingPosts(pendingPostsRes.data ?? []);
     setPendingJobs(pendingJobsRes.data ?? []);
+    setApprovalRequests(approvalsRes.data ?? []);
     setActivityLogs(logsRes.data ?? []);
     setSecurityEvents(secRes.data ?? []);
 
     const openSecurityAlerts = (secRes.data ?? []).filter((event) => event.status === "open").length;
     setMetrics({
       pendingJobs: (pendingPostsRes.data?.length ?? 0) + (pendingJobsRes.data?.length ?? 0),
+      pendingApprovals: approvalsRes.data?.length ?? 0,
+      approvedApprovals: approvedApprovalsCountRes.count ?? 0,
+      rejectedApprovals: rejectedApprovalsCountRes.count ?? 0,
       approvedJobs: (approvedPostsCountRes.count ?? 0) + (approvedJobsCountRes.count ?? 0),
       rejectedJobs: (rejectedPostsCountRes.count ?? 0) + (rejectedJobsCountRes.count ?? 0),
       totalUsers: profilesCountRes.count ?? 0,
@@ -241,6 +263,96 @@ export function AdminModule() {
     }
 
     pushToast(status === "approved" ? "Job Approved" : "Job Rejected", "success");
+    await reload();
+    setBusyKey(null);
+  }
+
+  async function onModerateApprovalRequest(request: AdminApprovalRequest, status: "approved" | "rejected") {
+    if (!supabase || !isAdmin || !userId) return;
+
+    setBusyKey(`approval:${request.id}:${status}`);
+    setError(null);
+
+    const { error: moderateError } = await moderateApprovalRequest(supabase, {
+      id: request.id,
+      status,
+      reviewed_by: userId,
+      review_note: status === "approved" ? "Approved from admin workspace" : "Rejected from admin workspace",
+    });
+
+    if (moderateError) {
+      setError(moderateError.message);
+      pushToast(moderateError.message, "error");
+      setBusyKey(null);
+      return;
+    }
+
+    if (request.request_type === "portfolio_publish") {
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .update({
+          is_public: status === "approved",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", request.requested_by);
+
+      if (profileError) {
+        await logActivity(supabase, {
+          user_id: userId,
+          actor_role: "admin",
+          action: "profile_visibility_sync_failed",
+          resource_type: "profile",
+          resource_id: request.requested_by,
+          severity: "warning",
+          source: "admin",
+          metadata: {
+            request_id: request.id,
+            error: profileError.message,
+            target_status: status,
+          },
+        });
+
+        pushToast("Approval saved, but profile visibility update failed", "error");
+      }
+    }
+
+    const typeLabel = getApprovalTypeLabel(request.request_type);
+    const approvalLink =
+      request.request_type === "job_application"
+        ? "/dashboard/jobs"
+        : request.request_type === "portfolio_publish"
+        ? "/dashboard/portfolio"
+        : "/dashboard/profile";
+
+    await Promise.allSettled([
+      createNotification(supabase, {
+        user_id: request.requested_by,
+        type: request.request_type === "job_application" ? "job" : "system",
+        title: `${typeLabel} ${status}`,
+        message:
+          status === "approved"
+            ? `Your ${typeLabel.toLowerCase()} request was approved by the admin team.`
+            : `Your ${typeLabel.toLowerCase()} request was rejected by the admin team.`,
+        link: approvalLink,
+      }),
+      logActivity(supabase, {
+        user_id: userId,
+        actor_role: "admin",
+        action: `approval_request_${status}`,
+        resource_type: request.resource_type,
+        resource_id: request.resource_id ?? request.id,
+        severity: status === "approved" ? "info" : "warning",
+        source: "admin",
+        metadata: {
+          request_id: request.id,
+          request_type: request.request_type,
+          requested_by: request.requested_by,
+          request_title: request.title,
+        },
+      }),
+    ]);
+
+    pushToast(`${typeLabel} ${status}`, "success");
     await reload();
     setBusyKey(null);
   }
@@ -376,8 +488,8 @@ export function AdminModule() {
           <div className="grid gap-3 sm:grid-cols-2">
             <QuickStatusCard
               label="Moderation queue"
-              value={`${metrics.pendingJobs} waiting`}
-              description={refreshing ? "Refreshing queue..." : "Across job posts and imported jobs"}
+              value={`${metrics.pendingJobs + metrics.pendingApprovals} waiting`}
+              description={refreshing ? "Refreshing queue..." : "Jobs and user approval requests"}
               tone="amber"
             />
             <QuickStatusCard
@@ -413,6 +525,14 @@ export function AdminModule() {
             icon={<Clock3 className="h-5 w-5" />}
           />
           <MetricCard
+            label="Pending Approvals"
+            value={metrics.pendingApprovals}
+            detail="Profile, activity, and application requests waiting review"
+            trend={metrics.pendingApprovals > 0 ? "Admin action required" : "Approval queue is clear"}
+            tone="blue"
+            icon={<FileText className="h-5 w-5" />}
+          />
+          <MetricCard
             label="Approved Jobs"
             value={metrics.approvedJobs}
             detail="Published and visible to candidates"
@@ -427,6 +547,14 @@ export function AdminModule() {
             trend="Quality control"
             tone="red"
             icon={<Ban className="h-5 w-5" />}
+          />
+          <MetricCard
+            label="Resolved Approvals"
+            value={metrics.approvedApprovals + metrics.rejectedApprovals}
+            detail={`${metrics.approvedApprovals} approved · ${metrics.rejectedApprovals} rejected`}
+            trend="Governance throughput"
+            tone="emerald"
+            icon={<CheckCircle2 className="h-5 w-5" />}
           />
           <MetricCard
             label="Total Users"
@@ -456,7 +584,8 @@ export function AdminModule() {
       </section>
 
       <div className="grid gap-5 xl:grid-cols-[1.55fr_1fr]">
-        <section className="rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.9),rgba(10,15,30,0.88))] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.35)] backdrop-blur-2xl md:p-6">
+        <div className="space-y-5">
+          <section className="rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.9),rgba(10,15,30,0.88))] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.35)] backdrop-blur-2xl md:p-6">
           <div className="flex flex-col gap-3 border-b border-white/10 pb-5 md:flex-row md:items-end md:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
@@ -490,7 +619,43 @@ export function AdminModule() {
               ))}
             </div>
           )}
-        </section>
+          </section>
+
+          <section className="rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.9),rgba(10,15,30,0.88))] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.35)] backdrop-blur-2xl md:p-6">
+          <div className="flex flex-col gap-3 border-b border-white/10 pb-5 md:flex-row md:items-end md:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+                Governance Queue
+              </p>
+              <h2 className="mt-2 text-2xl font-semibold text-white">Approval workflow queue</h2>
+              <p className="mt-1 text-sm text-slate-400">
+                Moderate user profile, activity, and application requests from one place.
+              </p>
+            </div>
+
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-sm text-slate-300">
+              <Activity className="h-4 w-4 text-cyan-300" />
+              {refreshing ? "Syncing approvals..." : `${approvalRequests.length} requests in queue`}
+            </div>
+          </div>
+
+          {approvalRequests.length === 0 ? (
+            <EmptyActivityState label="No pending approval requests." />
+          ) : (
+            <div className="mt-5 space-y-4">
+              {approvalRequests.map((request) => (
+                <ApprovalRequestCard
+                  key={request.id}
+                  request={request}
+                  busyKey={busyKey}
+                  onApprove={() => void onModerateApprovalRequest(request, "approved")}
+                  onReject={() => void onModerateApprovalRequest(request, "rejected")}
+                />
+              ))}
+            </div>
+          )}
+          </section>
+        </div>
 
         <div className="space-y-5">
           <section className="rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.92),rgba(10,15,30,0.88))] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.35)] backdrop-blur-2xl md:p-6">
@@ -774,6 +939,59 @@ function ModerationJobCard({
   );
 }
 
+function ApprovalRequestCard({
+  request,
+  busyKey,
+  onApprove,
+  onReject,
+}: {
+  request: AdminApprovalRequest;
+  busyKey: string | null;
+  onApprove: () => void;
+  onReject: () => void;
+}) {
+  const approving = busyKey === `approval:${request.id}:approved`;
+  const rejecting = busyKey === `approval:${request.id}:rejected`;
+
+  return (
+    <article className="rounded-[28px] border border-white/10 bg-white/[0.04] p-5 backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:border-cyan-300/20 hover:bg-white/[0.06] hover:shadow-[0_16px_50px_rgba(0,0,0,0.28)]">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="rounded-full border border-cyan-400/15 bg-cyan-400/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-200">
+          {getApprovalTypeLabel(request.request_type)}
+        </span>
+        <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] font-medium text-slate-400">
+          {formatTimeAgo(request.created_at)}
+        </span>
+      </div>
+
+      <h3 className="mt-4 text-lg font-semibold text-white">{request.title}</h3>
+      <p className="mt-2 text-sm text-slate-300">{request.summary || "No summary provided"}</p>
+      <p className="mt-3 text-xs uppercase tracking-[0.16em] text-slate-500">
+        {request.resource_type} · requested by {shortId(request.requested_by)}
+      </p>
+
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <button
+          onClick={onApprove}
+          disabled={approving || rejecting}
+          className="inline-flex items-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-2.5 text-sm font-medium text-emerald-100 transition-all duration-200 hover:-translate-y-0.5 hover:bg-emerald-400/15 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <CheckCircle2 className="h-4 w-4" />
+          {approving ? "Approving..." : "Approve"}
+        </button>
+        <button
+          onClick={onReject}
+          disabled={approving || rejecting}
+          className="inline-flex items-center gap-2 rounded-2xl border border-rose-400/20 bg-rose-400/10 px-4 py-2.5 text-sm font-medium text-rose-100 transition-all duration-200 hover:-translate-y-0.5 hover:bg-rose-400/15 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <XCircle className="h-4 w-4" />
+          {rejecting ? "Rejecting..." : "Reject"}
+        </button>
+      </div>
+    </article>
+  );
+}
+
 function EmptyModerationState() {
   return (
     <div className="flex flex-col items-center justify-center px-4 py-16 text-center">
@@ -1022,6 +1240,20 @@ const COMMON_WORDS = new Set([
 function matchesKeywords(text: string, keywords: string[]) {
   const normalized = text.toLowerCase();
   return keywords.some((keyword) => normalized.includes(keyword));
+}
+
+function getApprovalTypeLabel(type: AdminApprovalRequestType) {
+  switch (type) {
+    case "profile_update":
+      return "Profile update";
+    case "portfolio_publish":
+      return "Portfolio publish";
+    case "job_application":
+      return "Job application";
+    case "user_activity":
+    default:
+      return "User activity";
+  }
 }
 
 function shortId(value: string | null) {

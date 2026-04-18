@@ -92,8 +92,8 @@ export default function AdminPage() {
     <main className="min-h-screen flex items-center justify-center bg-background">
       <div className="w-full max-w-md px-4">
         <div className="rounded-3xl border border-border bg-card p-8 shadow-xl">
-          <h1 className="text-3xl font-bold mb-2">Admin Sign In</h1>
-          <p className="text-sm text-muted-foreground mb-6">Sign in with your admin email and password.</p>
+          <h1 className="text-3xl font-bold mb-2">{t("adminSignInTitle")}</h1>
+          <p className="text-sm text-muted-foreground mb-6">{t("adminSignInDescription")}</p>
 
           {showError ? (
             <div className="mb-4 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
@@ -103,18 +103,18 @@ export default function AdminPage() {
 
           <form onSubmit={onLogin} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Email</label>
+              <label className="block text-sm font-medium mb-1">{t("email")}</label>
               <input
                 type="email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full rounded-lg border border-border bg-background px-3 py-2"
-                placeholder="admin@example.com"
+                placeholder={t("adminEmailPlaceholder")}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Password</label>
+              <label className="block text-sm font-medium mb-1">{t("password")}</label>
               <input
                 type="password"
                 required
@@ -129,7 +129,7 @@ export default function AdminPage() {
               disabled={authLoading}
               className="w-full rounded-lg bg-primary px-4 py-2 font-semibold text-primary-foreground disabled:opacity-60"
             >
-              {authLoading ? t("loading") : "Sign In"}
+              {authLoading ? t("loading") : t("signIn")}
             </button>
           </form>
 
@@ -138,7 +138,7 @@ export default function AdminPage() {
               <button onClick={onSignOut} className="underline">
                 {t("signOut")}
               </button>{" "}
-              to switch accounts.
+              {t("switchAccountsSuffix")}
             </div>
           ) : null}
         </div>

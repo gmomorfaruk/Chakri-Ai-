@@ -2,10 +2,20 @@
 import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
 import { Sun, Moon } from "lucide-react";
+import { useI18n } from "@/components/providers/I18nProvider";
 
-export function ThemeSwitcher() {
-  const { theme, setTheme } = useTheme();
+type ThemeSwitcherProps = {
+  className?: string;
+};
+
+export function ThemeSwitcher({ className = "" }: ThemeSwitcherProps) {
+  const { theme, resolvedTheme, setTheme } = useTheme();
+  const { t } = useI18n();
   const [mounted, setMounted] = useState(false);
+
+  const activeTheme = mounted ? resolvedTheme ?? theme ?? "dark" : "dark";
+  const nextTheme = activeTheme === "dark" ? "light" : "dark";
+  const switchTitle = mounted ? `${t("theme")}: ${nextTheme === "dark" ? t("dark") : t("light")}` : t("theme");
 
   useEffect(() => {
     setMounted(true);
@@ -13,11 +23,12 @@ export function ThemeSwitcher() {
 
   return (
     <button
-      onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-      className="rounded p-2 bg-muted text-foreground border flex items-center"
-      aria-label="Toggle theme"
+      onClick={() => setTheme(nextTheme)}
+      className={`flex items-center rounded border bg-muted p-2 text-foreground ${className}`.trim()}
+      aria-label={switchTitle}
+      title={switchTitle}
     >
-      {!mounted ? <Moon size={18} /> : theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+      {!mounted ? <Moon size={18} /> : activeTheme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
     </button>
   );
 }

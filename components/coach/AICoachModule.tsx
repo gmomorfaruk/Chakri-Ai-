@@ -22,9 +22,9 @@ export function AICoachModule() {
   const [view, setView] = useState<"chat" | "quiz" | "learning">(() => getInitialView(searchParams.get("view")));
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-[#0a0f1e]">
+    <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-[#0a0f1e]">
       {/* View Toggle - Fixed at top */}
-      <div className="sticky top-0 z-20 flex gap-2 overflow-x-auto border-b border-slate-700/50 bg-gradient-to-b from-[#0a0f1e]/95 to-[#0a0f1e]/80 p-4 backdrop-blur-md">
+      <div className="sticky top-0 z-20 flex gap-2 overflow-x-auto border-b border-slate-700/50 bg-gradient-to-b from-[#0a0f1e]/95 to-[#0a0f1e]/80 px-3 py-3 backdrop-blur-md sm:p-4">
         <button
           onClick={() => setView("chat")}
           className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all whitespace-nowrap ${
@@ -33,7 +33,7 @@ export function AICoachModule() {
               : "bg-white/10 text-gray-400 hover:bg-white/20"
           }`}
         >
-          💬 {t("interviewCoach") || "Chat"}
+          💬 {t("interviewCoach") || t("startInterview")}
         </button>
         <button
           onClick={() => setView("learning")}
@@ -43,7 +43,7 @@ export function AICoachModule() {
               : "bg-white/10 text-gray-400 hover:bg-white/20"
           }`}
         >
-          🎓 {t("learningCoach") || "Career Coach AI"}
+          🎓 {t("learningCoach") || t("openLearning")}
         </button>
         <button
           onClick={() => setView("quiz")}
@@ -53,24 +53,32 @@ export function AICoachModule() {
               : "bg-white/10 text-gray-400 hover:bg-white/20"
           }`}
         >
-          📝 {t("quizPractice") || "Quiz"}
+          📝 {t("quizPractice") || t("startQuiz")}
         </button>
       </div>
 
+      <div className="border-b border-slate-800/60 px-4 py-2 text-xs uppercase tracking-[0.16em] text-slate-500">
+        {view === "chat"
+          ? t("coachNextStepInterview")
+          : view === "learning"
+            ? t("coachNextStepLearning")
+            : t("coachNextStepQuiz")}
+      </div>
+
       {/* Content Area */}
-      <div className="min-h-0 flex-1">
+      <div className="flex min-h-0 flex-1 overflow-hidden">
         {view === "chat" && (
-          <div className="h-full overflow-hidden">
+          <div className="h-full min-h-0 w-full overflow-hidden">
             <PremiumChatInterface />
           </div>
         )}
         {view === "learning" && (
-          <div className="h-full overflow-hidden">
+          <div className="h-full min-h-0 w-full overflow-hidden">
             <ConversationalLearningAI />
           </div>
         )}
         {view === "quiz" && (
-          <div className="h-full overflow-y-auto">
+          <div className="h-full min-h-0 w-full overflow-hidden">
             <QuizPractice />
           </div>
         )}

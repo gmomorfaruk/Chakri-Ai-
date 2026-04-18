@@ -69,3 +69,48 @@ export interface JobMatchResult extends JobMatch {
   job?: Job;
   score_percent?: number;
 }
+
+export type JobSourceType = "internal" | "manual" | "external_api" | "feed" | "scraper";
+
+export type UnifiedJobCategory =
+  | "software"
+  | "data"
+  | "design"
+  | "marketing"
+  | "operations"
+  | "finance"
+  | "support"
+  | "other";
+
+export type UnifiedJobType = "full-time" | "part-time" | "contract" | "internship" | "remote" | "hybrid" | "on-site" | "other";
+
+export type UnifiedExperienceLevel = "fresher" | "junior" | "mid" | "senior" | "lead" | "any";
+
+export type UnifiedJobStatus = "pending" | "approved" | "rejected" | "active" | "expired" | "inactive";
+
+export interface UnifiedJobRecord {
+  id: string;
+  title: string;
+  company: string;
+  location: string | null;
+  category: UnifiedJobCategory;
+  job_type: UnifiedJobType;
+  experience_level: UnifiedExperienceLevel;
+  salary: string | null;
+  short_description: string;
+  full_description: string;
+  requirements: string[];
+  responsibilities: string[];
+  skills: string[];
+  source: string;
+  source_type: JobSourceType;
+  source_url: string | null;
+  apply_url: string | null;
+  posted_at: string | null;
+  deadline: string | null;
+  is_active: boolean;
+  is_approved: boolean;
+  status: UnifiedJobStatus;
+  created_at: string;
+  updated_at: string;
+}
