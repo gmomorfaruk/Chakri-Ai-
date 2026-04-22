@@ -52,12 +52,47 @@ const journeySteps = [
 
 const tailSegments = [0, 1, 2, 3, 4, 5, 6];
 
+const globalJobMarkers = [
+  { city: "Vancouver", x: 302, y: 124, delay: 0.08 },
+  { city: "Seattle", x: 309, y: 132, delay: 0.14 },
+  { city: "San Francisco", x: 306, y: 145, delay: 0.2 },
+  { city: "Los Angeles", x: 311, y: 156, delay: 0.26 },
+  { city: "Toronto", x: 326, y: 133, delay: 0.32 },
+  { city: "New York", x: 338, y: 141, delay: 0.38 },
+  { city: "Mexico City", x: 329, y: 173, delay: 0.44 },
+  { city: "Bogota", x: 343, y: 193, delay: 0.5 },
+  { city: "Lima", x: 349, y: 212, delay: 0.56 },
+  { city: "Sao Paulo", x: 366, y: 225, delay: 0.62 },
+  { city: "Buenos Aires", x: 362, y: 246, delay: 0.68 },
+  { city: "London", x: 406, y: 118, delay: 0.74 },
+  { city: "Paris", x: 413, y: 124, delay: 0.8 },
+  { city: "Berlin", x: 420, y: 122, delay: 0.86 },
+  { city: "Madrid", x: 407, y: 136, delay: 0.92 },
+  { city: "Lagos", x: 418, y: 184, delay: 0.98 },
+  { city: "Nairobi", x: 433, y: 196, delay: 1.04 },
+  { city: "Cairo", x: 431, y: 161, delay: 1.1 },
+  { city: "Johannesburg", x: 432, y: 228, delay: 1.16 },
+  { city: "Dubai", x: 447, y: 151, delay: 1.22 },
+  { city: "Karachi", x: 458, y: 160, delay: 1.28 },
+  { city: "Mumbai", x: 467, y: 171, delay: 1.34 },
+  { city: "Dhaka", x: 476, y: 167, delay: 1.4 },
+  { city: "Bangkok", x: 489, y: 179, delay: 1.46 },
+  { city: "Singapore", x: 502, y: 189, delay: 1.52 },
+  { city: "Hong Kong", x: 506, y: 160, delay: 1.58 },
+  { city: "Seoul", x: 517, y: 142, delay: 1.64 },
+  { city: "Tokyo", x: 525, y: 150, delay: 1.7 },
+  { city: "Jakarta", x: 509, y: 203, delay: 1.76 },
+  { city: "Sydney", x: 530, y: 236, delay: 1.82 },
+];
+
 export default function DashboardHome() {
   const supabase = useSupabase();
   const [userName, setUserName] = useState("there");
   const [profileCompletion, setProfileCompletion] = useState(40);
   const [interviewAttempts, setInterviewAttempts] = useState(0);
   const [savedJobs, setSavedJobs] = useState(0);
+  const [timelineYear, setTimelineYear] = useState(2023);
+  const [timelinePeople, setTimelinePeople] = useState(48200);
 
   useEffect(() => {
     async function loadDashboardSignals() {
@@ -137,6 +172,83 @@ export default function DashboardHome() {
     return { label: "Explore Job Matches", href: "/dashboard/jobs" };
   }, [profileCompletion, interviewAttempts]);
 
+  const miniSignals = useMemo(() => {
+    const interviewSignal = Math.min(100, interviewAttempts * 18 + (interviewAttempts > 0 ? 22 : 0));
+    const savedJobsSignal = Math.min(100, savedJobs * 15 + (savedJobs > 0 ? 18 : 0));
+    const readiness = Math.min(100, Math.round(profileCompletion * 0.6 + interviewSignal * 0.25 + savedJobsSignal * 0.15));
+
+    const years = [2023, 2024, 2025, 2026];
+    const peopleTrend = [58, 74, 67, 100];
+    const chartStartX = 12;
+    const chartEndX = 224;
+    const chartTopY = 14;
+    const chartBaseY = 80;
+    const step = (chartEndX - chartStartX) / (peopleTrend.length - 1);
+
+    const points = peopleTrend
+      .map((value, index) => {
+        const x = Math.round(chartStartX + index * step);
+        const y = chartBaseY - Math.round((value / 100) * (chartBaseY - chartTopY));
+        return `${x},${y}`;
+      })
+      .join(" ");
+
+    const areaPoints = `${chartStartX},${chartBaseY} ${points} ${chartEndX},${chartBaseY}`;
+    const yearTicks = years.map((year, index) => ({
+      year,
+      x: Math.round(chartStartX + step * index),
+    }));
+    const peakY = chartBaseY - Math.round((peopleTrend[peopleTrend.length - 1] / 100) * (chartBaseY - chartTopY));
+    const peakYear = years[peopleTrend.indexOf(Math.max(...peopleTrend))] ?? years[years.length - 1];
+
+    return {
+      readiness,
+      years,
+      points,
+      areaPoints,
+      yearTicks,
+      chartStartX,
+      chartEndX,
+      chartBaseY,
+      peakY,
+      peakYear,
+      yearStart: years[0],
+      yearEnd: 2026,
+      peopleStart: 48200,
+      peopleNow: 128400,
+    };
+  }, [interviewAttempts, profileCompletion, savedJobs]);
+
+  const cardProgress = useMemo(() => {
+    const interview = Math.min(100, interviewAttempts * 20 + (interviewAttempts > 0 ? 12 : 0));
+    const jobs = Math.min(100, savedJobs * 16 + (savedJobs > 0 ? 10 : 0));
+
+    return {
+      interview,
+      jobs,
+    };
+  }, [interviewAttempts, savedJobs]);
+
+  useEffect(() => {
+    let frame = 0;
+    const totalFrames = 120;
+
+    const timer = window.setInterval(() => {
+      frame += 1;
+      const progress = Math.min(1, frame / totalFrames);
+      const eased = 1 - Math.pow(1 - progress, 3);
+
+      setTimelineYear(Math.round(miniSignals.yearStart + (miniSignals.yearEnd - miniSignals.yearStart) * eased));
+      setTimelinePeople(Math.round(miniSignals.peopleStart + (miniSignals.peopleNow - miniSignals.peopleStart) * eased));
+
+      if (frame >= totalFrames) {
+        window.clearInterval(timer);
+      }
+    }, 24);
+
+    return () => window.clearInterval(timer);
+  }, [miniSignals.peopleNow, miniSignals.peopleStart, miniSignals.yearEnd, miniSignals.yearStart]);
+
   return (
     <section className="min-h-full bg-[#020617] text-slate-200 selection:bg-blue-500/30">
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -144,7 +256,7 @@ export default function DashboardHome() {
         <div className="absolute top-[20%] -right-[10%] h-[46%] w-[30%] rounded-full bg-purple-900/10 blur-[120px]" />
       </div>
 
-      <div className="relative mx-auto max-w-6xl px-6 py-12">
+      <div className="relative mx-auto max-w-6xl px-4 py-4 sm:px-6 sm:py-6 md:py-7">
         <motion.section
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
@@ -156,6 +268,210 @@ export default function DashboardHome() {
               <p className="text-xs uppercase tracking-[0.2em] text-cyan-200/80">Career Dashboard</p>
               <h1 className="mt-2 text-3xl font-bold text-white md:text-4xl">Welcome back, {userName} 👋</h1>
               <p className="mt-2 text-slate-300">Let&apos;s continue building your career journey.</p>
+            </div>
+
+            <div className="rounded-2xl border border-cyan-300/20 bg-gradient-to-br from-cyan-500/12 via-blue-500/10 to-violet-500/10 p-4 shadow-[0_14px_36px_rgba(14,116,144,0.2)]">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs uppercase tracking-[0.18em] text-cyan-100/90">Chakri Pulse</p>
+                <span className="rounded-full border border-cyan-200/30 bg-cyan-400/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-cyan-100">
+                  {miniSignals.readiness}% readiness
+                </span>
+              </div>
+
+              <div className="mt-4 grid items-stretch gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+                <div className="rounded-xl border border-cyan-300/20 bg-[#050d1a]/85 p-3 shadow-[inset_0_0_30px_rgba(56,189,248,0.12),0_12px_32px_rgba(2,8,23,0.42)]">
+                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-slate-400">GLOBAL JOB GLOBE</p>
+                    <span className="rounded-full border border-rose-400/35 bg-[#3b0f18]/90 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-white">
+                      WORLDWIDE OPENINGS
+                    </span>
+                  </div>
+
+                  <div className="overflow-hidden rounded-lg border border-cyan-300/15 bg-[radial-gradient(ellipse_at_center,rgba(24,58,96,0.35)_0%,rgba(5,13,26,0.98)_68%)]">
+                      <svg viewBox="0 0 760 320" role="img" aria-label="Global job coverage with active locations" className="h-56 w-full md:h-60">
+                      <defs>
+                        <radialGradient id="globe-fill" cx="50%" cy="45%" r="62%">
+                          <stop offset="0%" stopColor="#16466f" />
+                          <stop offset="100%" stopColor="#0a2a4a" />
+                        </radialGradient>
+                        <radialGradient id="atmosphere-halo" cx="50%" cy="50%" r="70%">
+                          <stop offset="62%" stopColor="rgba(125,211,252,0)" />
+                          <stop offset="80%" stopColor="rgba(125,211,252,0.16)" />
+                          <stop offset="100%" stopColor="rgba(125,211,252,0)" />
+                        </radialGradient>
+                        <clipPath id="globe-clip">
+                          <circle cx="380" cy="160" r="132" />
+                        </clipPath>
+                        <filter id="marker-glow" x="-200%" y="-200%" width="400%" height="400%">
+                          <feDropShadow dx="0" dy="0" stdDeviation="2.2" floodColor="#ff3333" floodOpacity="0.55" />
+                        </filter>
+                      </defs>
+
+                      <circle cx="380" cy="160" r="150" fill="url(#atmosphere-halo)" />
+
+                      <g>
+                        <circle cx="380" cy="160" r="132" fill="url(#globe-fill)" stroke="rgba(148,163,184,0.3)" strokeWidth="1.2" />
+                        <circle cx="380" cy="160" r="134" fill="none" stroke="rgba(125,211,252,0.18)" strokeWidth="2" />
+
+                        <g opacity="0.95" stroke="rgba(100,180,255,0.15)" fill="none">
+                          <ellipse cx="380" cy="160" rx="132" ry="132" />
+                          <ellipse cx="380" cy="160" rx="112" ry="132" />
+                          <ellipse cx="380" cy="160" rx="86" ry="132" />
+                          <ellipse cx="380" cy="160" rx="58" ry="132" />
+                          <ellipse cx="380" cy="160" rx="132" ry="26" />
+                          <ellipse cx="380" cy="160" rx="132" ry="52" />
+                          <ellipse cx="380" cy="160" rx="132" ry="82" />
+                          <ellipse cx="380" cy="160" rx="132" ry="106" />
+                        </g>
+
+                        <g clipPath="url(#globe-clip)">
+                          <motion.g animate={{ x: [0, -264] }} transition={{ duration: 20, repeat: Infinity, ease: "linear" }}>
+                            {[0, 264].map((offset) => (
+                              <g key={offset} transform={`translate(${offset} 0)`}>
+                                <path
+                                  d="M286 102 302 86 324 80 342 88 353 102 349 124 332 136 311 137 292 126Z"
+                                  fill="#1a5c8a"
+                                />
+                                <path
+                                  d="M325 146 342 164 349 191 344 216 334 238 320 222 318 194Z"
+                                  fill="#1a5c8a"
+                                />
+                                <path
+                                  d="M398 102 417 92 438 98 449 112 446 127 430 136 411 133 400 120Z"
+                                  fill="#1a5c8a"
+                                />
+                                <path
+                                  d="M406 147 421 143 434 154 439 176 431 200 419 216 405 201 401 176Z"
+                                  fill="#1a5c8a"
+                                />
+                                <path
+                                  d="M444 116 470 108 498 113 522 127 534 146 532 166 514 179 488 181 462 168 448 150Z"
+                                  fill="#1a5c8a"
+                                />
+                                <path
+                                  d="M490 198 514 194 535 206 527 226 505 235 486 223Z"
+                                  fill="#1a5c8a"
+                                />
+
+                                {globalJobMarkers.map((marker) => (
+                                  <g key={`${marker.city}-${offset}`}>
+                                    <motion.circle
+                                      cx={marker.x}
+                                      cy={marker.y}
+                                      r="12"
+                                      fill="rgba(255,51,51,0.22)"
+                                      initial={{ scale: 0.45, opacity: 0.18 }}
+                                      animate={{ scale: [0.6, 1.45, 0.6], opacity: [0.2, 0.7, 0.2] }}
+                                      transition={{ duration: 1.8, repeat: Infinity, delay: marker.delay }}
+                                    />
+                                    <motion.circle
+                                      cx={marker.x}
+                                      cy={marker.y}
+                                      r="5"
+                                      fill="rgba(255,80,80,0.35)"
+                                      animate={{ opacity: [0.22, 0.92, 0.22] }}
+                                      transition={{ duration: 1.3, repeat: Infinity, delay: marker.delay / 2 }}
+                                    />
+                                    <circle cx={marker.x} cy={marker.y} r="2.9" fill="#ff3333" filter="url(#marker-glow)" />
+                                  </g>
+                                ))}
+                              </g>
+                            ))}
+                          </motion.g>
+
+                          {/* Day/night shading keeps depth while map texture scrolls */}
+                          <ellipse cx="434" cy="160" rx="96" ry="132" fill="rgba(3,8,18,0.3)" />
+                          <ellipse cx="322" cy="160" rx="84" ry="132" fill="rgba(255,255,255,0.04)" />
+                        </g>
+                      </g>
+                      </svg>
+                  </div>
+
+                  <p className="mt-2 text-[11px] uppercase tracking-[0.14em] text-slate-400">
+                    GLOBAL COVERAGE IS ACTIVE: RED BLINKING MARKERS INDICATE LIVE HIRING ZONES.
+                  </p>
+                </div>
+
+                <div className="flex h-full flex-col rounded-xl border border-white/10 bg-[#020b18]/80 p-3 lg:min-h-[344px]">
+                  <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+                    <p className="text-[11px] uppercase tracking-[0.15em] text-slate-400">People count vs year</p>
+                    <p className="text-xs text-cyan-100/90">
+                      <span className="font-semibold text-white">{timelinePeople.toLocaleString()}</span> people by {timelineYear}
+                    </p>
+                  </div>
+
+                  <svg viewBox="0 0 236 112" role="img" aria-label="People growth from 2023 to 2026" className="h-52 w-full md:h-56">
+                    <defs>
+                      <linearGradient id="pulse-line" x1="0" x2="1" y1="0" y2="0">
+                        <stop offset="0%" stopColor="#22d3ee" />
+                        <stop offset="50%" stopColor="#60a5fa" />
+                        <stop offset="100%" stopColor="#e879f9" />
+                      </linearGradient>
+                      <linearGradient id="pulse-area" x1="0" x2="0" y1="0" y2="1">
+                        <stop offset="0%" stopColor="rgba(96,165,250,0.3)" />
+                        <stop offset="100%" stopColor="rgba(96,165,250,0.02)" />
+                      </linearGradient>
+                    </defs>
+                    <line x1="12" y1="16" x2="224" y2="16" stroke="rgba(148,163,184,0.22)" strokeDasharray="3 5" />
+                    <line x1="12" y1="38" x2="224" y2="38" stroke="rgba(148,163,184,0.18)" strokeDasharray="3 5" />
+                    <line x1="12" y1="60" x2="224" y2="60" stroke="rgba(148,163,184,0.14)" strokeDasharray="3 5" />
+                    <line
+                      x1={miniSignals.chartStartX}
+                      y1={miniSignals.chartBaseY}
+                      x2={miniSignals.chartEndX}
+                      y2={miniSignals.chartBaseY}
+                      stroke="rgba(148,163,184,0.2)"
+                    />
+                    <motion.polygon
+                      points={miniSignals.areaPoints}
+                      fill="url(#pulse-area)"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ duration: 1.8, ease: "easeOut" }}
+                    />
+                    <motion.polyline
+                      fill="none"
+                      stroke="url(#pulse-line)"
+                      strokeWidth="3"
+                      strokeLinejoin="round"
+                      strokeLinecap="round"
+                      points={miniSignals.points}
+                      initial={{ pathLength: 0, opacity: 0.4 }}
+                      animate={{ pathLength: 1, opacity: 1 }}
+                      transition={{ duration: 2.4, ease: "easeOut" }}
+                    />
+                    <motion.circle
+                      cx="224"
+                      cy={miniSignals.peakY}
+                      r="3.5"
+                      fill="#f5d0fe"
+                      initial={{ scale: 0.4, opacity: 0.3 }}
+                      animate={{ scale: [0.8, 1.2, 0.9], opacity: [0.6, 1, 0.85] }}
+                      transition={{ duration: 1.4, repeat: Infinity, repeatType: "mirror" }}
+                    />
+                    {miniSignals.yearTicks.map((tick) => (
+                      <text
+                        key={tick.year}
+                        x={tick.x}
+                        y="102"
+                        fill="rgba(148,163,184,0.95)"
+                        fontSize="6.2"
+                        letterSpacing="1.2"
+                        textAnchor={
+                          tick.x === miniSignals.chartStartX
+                            ? "start"
+                            : tick.x === miniSignals.chartEndX
+                              ? "end"
+                              : "middle"
+                        }
+                      >
+                        {tick.year}
+                      </text>
+                    ))}
+                  </svg>
+                  <p className="mt-auto pt-2 text-[11px] uppercase tracking-[0.16em] text-slate-400">Momentum snapshot: peak in {miniSignals.peakYear}</p>
+                </div>
+              </div>
             </div>
 
             <div className="flex flex-wrap gap-3">
@@ -187,6 +503,8 @@ export default function DashboardHome() {
               label: "Profile Completion",
               value: `${profileCompletion}%`,
               hint: profileCompletion < 70 ? "Improve profile depth" : "Strong progress",
+              progress: profileCompletion,
+              progressClass: "from-cyan-400 via-sky-400 to-blue-400",
               href: "/dashboard/profile",
               icon: User,
             },
@@ -194,6 +512,8 @@ export default function DashboardHome() {
               label: "Interview Attempts",
               value: `${interviewAttempts}`,
               hint: interviewAttempts === 0 ? "Start your first session" : "Keep practicing",
+              progress: cardProgress.interview,
+              progressClass: "from-violet-400 via-fuchsia-400 to-pink-400",
               href: "/dashboard/ai",
               icon: Bot,
             },
@@ -201,6 +521,8 @@ export default function DashboardHome() {
               label: "Saved Jobs",
               value: `${savedJobs}`,
               hint: savedJobs === 0 ? "Build a shortlist" : "Track and apply",
+              progress: cardProgress.jobs,
+              progressClass: "from-emerald-400 via-teal-400 to-cyan-400",
               href: "/dashboard/jobs",
               icon: Briefcase,
             },
@@ -218,6 +540,14 @@ export default function DashboardHome() {
                 <p className="text-xs uppercase tracking-[0.18em] text-slate-400">{item.label}</p>
                 <p className="mt-1 text-2xl font-bold text-white">{item.value}</p>
                 <p className="mt-1 text-xs text-slate-400">{item.hint}</p>
+                <div className="mt-4 h-1.5 rounded-full bg-slate-800/90">
+                  <motion.div
+                    className={`h-full rounded-full bg-gradient-to-r ${item.progressClass}`}
+                    initial={{ width: 0 }}
+                    animate={{ width: `${item.progress}%` }}
+                    transition={{ duration: 0.9, ease: "easeOut" }}
+                  />
+                </div>
               </Link>
             );
           })}

@@ -164,61 +164,116 @@ export async function getUserProfileForMatching(supabase: SupabaseClient, userId
     .eq("id", userId)
     .maybeSingle();
 
-  // Fallback for schema versions where matching columns are not on profiles.
-  if (profileError) {
-    const { data: baseProfile, error: baseProfileError } = await supabase
-      .from("profiles")
-      .select("id")
-      .eq("id", userId)
-      .maybeSingle();
-
-    if (baseProfileError || !baseProfile) {
-      return null;
-    }
-
-    let fallbackTargetRole: string | null = null;
-
-    // Optional enrichment: infer target role from latest roadmap if available.
-    const { data: roadmap } = await supabase
-      .from("roadmaps")
-      .select("target_role")
-      .eq("user_id", userId)
-      .not("target_role", "is", null)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    fallbackTargetRole = roadmap?.target_role ?? null;
-
-    const { data: skillsRows } = await supabase
-      .from("skills")
-      .select("name")
-      .eq("user_id", userId);
-
-    const skills = (skillsRows ?? []).map((s) => s.name).filter(Boolean);
-
-    return {
-      id: baseProfile.id,
-      target_role: fallbackTargetRole,
-      preferred_location: null,
-      years_experience: null,
-      skills,
-    };
-  }
-
   const { data: skillsRows } = await supabase
     .from("skills")
     .select("name")
     .eq("user_id", userId);
 
-  const skills = (skillsRows ?? []).map((s) => s.name).filter(Boolean);
+  const { data: experienceRows } = await supabase
+    .from("experiences")
+    .select("title, start_date, end_date")
+    .eq("user_id", userId);
 
-  return profile
-    ? {
-        ...profile,
-        skills,
-      }
-    : null;
+  const normalizeList = (items: string[]) =>
+    Array.from(new Set(items.map((item) => item.trim()).filter(Boolean)));
+
+  const skills = normalizeList((skillsRows ?? []).map((s) => s.name as string));
+
+  const dateToMillis = (value: string | null | undefined) => {
+    if (!value) return 0;
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
+  const inferTargetRoleFromExperience = () => {
+    const rows = (experienceRows ?? []).filter((row) => Boolean(row?.title?.trim()));
+    if (rows.length === 0) return null;
+
+    const sortedRows = [...rows].sort((a, b) => {
+      const aTime = dateToMillis(a.end_date ?? a.start_date);
+      const bTime = dateToMillis(b.end_date ?? b.start_date);
+      return bTime - aTime;
+    });
+
+    return sortedRows[0]?.title?.trim() ?? null;
+  };
+
+  const inferYearsExperience = () => {
+    const rows = (experienceRows ?? []).filter((row) => Boolean(row?.start_date));
+    if (rows.length === 0) return null;
+
+    const startDates = rows.map((row) => dateToMillis(row.start_date)).filter((value) => value > 0);
+    if (startDates.length === 0) return null;
+
+    const earliestStart = Math.min(...startDates);
+    const latestEnd = rows
+      .map((row) => dateToMillis(row.end_date) || Date.now())
+      .reduce((max, value) => Math.max(max, value), earliestStart);
+
+    const years = (latestEnd - earliestStart) / (1000 * 60 * 60 * 24 * 365.25);
+    if (!Number.isFinite(years) || years < 0) return null;
+
+    return Math.round(years * 10) / 10;
+  };
+
+  let baseProfile: {
+    id: string;
+    target_role: string | null;
+    preferred_location: string | null;
+    years_experience: number | null;
+  } | null = null;
+
+  if (!profileError && profile) {
+    baseProfile = {
+      id: profile.id,
+      target_role: profile.target_role,
+      preferred_location: profile.preferred_location,
+      years_experience: typeof profile.years_experience === "number" ? profile.years_experience : null,
+    };
+  } else {
+    // Fallback for schema versions where matching columns are not on profiles.
+    const { data: bareProfile, error: bareProfileError } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (bareProfileError || !bareProfile) {
+      return null;
+    }
+
+    baseProfile = {
+      id: bareProfile.id,
+      target_role: null,
+      preferred_location: null,
+      years_experience: null,
+    };
+  }
+
+  const { data: roadmap } = await supabase
+    .from("roadmaps")
+    .select("target_role")
+    .eq("user_id", userId)
+    .not("target_role", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const resolvedTargetRole =
+    baseProfile.target_role?.trim() || roadmap?.target_role?.trim() || inferTargetRoleFromExperience();
+
+  const resolvedYearsExperience =
+    baseProfile.years_experience === null || baseProfile.years_experience === undefined
+      ? inferYearsExperience()
+      : baseProfile.years_experience;
+
+  return {
+    id: baseProfile.id,
+    target_role: resolvedTargetRole || null,
+    preferred_location: baseProfile.preferred_location?.trim() || null,
+    years_experience: resolvedYearsExperience,
+    skills,
+  };
 }
 
 export async function getUserJobMatches(supabase: SupabaseClient, userId: string, limit = 10) {

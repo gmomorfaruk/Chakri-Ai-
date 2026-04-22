@@ -265,7 +265,7 @@ export function PremiumChatInterface() {
       }
 
       if (aiMsgError) {
-        setError(aiMsgError.message);
+        setError(aiMsgError.message ?? "Unable to save assistant message.");
         setIsThinking(false);
         return;
       }
@@ -394,7 +394,9 @@ export function PremiumChatInterface() {
         sessions={sessions}
         activeSessionId={activeSessionId}
         mode={mode}
-        onLoadSession={loadSession}
+        onLoadSession={async (sessionId) => {
+          await loadSession(sessionId);
+        }}
         onCreateSession={createNewSession}
         onModeChange={setMode}
       />

@@ -27,16 +27,111 @@ export interface MatchingScore {
   missing_skills: string[];
 }
 
-// Helper: Normalize strings for comparison
+const ROLE_ALIAS_GROUPS = [
+  ["developer", "engineer", "programmer", "software"],
+  ["frontend", "front-end", "ui"],
+  ["backend", "back-end", "api", "server"],
+  ["fullstack", "full-stack", "full", "stack"],
+  ["data", "analyst", "analytics", "bi"],
+  ["ml", "machine", "learning", "ai"],
+  ["designer", "design", "ux", "uiux", "product"],
+  ["manager", "lead", "head", "director"],
+];
+
+const SKILL_ALIASES: Record<string, string> = {
+  js: "javascript",
+  ts: "typescript",
+  "react.js": "react",
+  "reactjs": "react",
+  node: "node.js",
+  "nodejs": "node.js",
+  postgres: "postgresql",
+  "postgre sql": "postgresql",
+  "nextjs": "next.js",
+  "next js": "next.js",
+  "tailwindcss": "tailwind",
+  "c sharp": "c#",
+  "c plus plus": "c++",
+};
+
+const LOCATION_STOP_WORDS = new Set(["city", "district", "division", "state", "area", "region"]);
+const REMOTE_KEYWORDS = ["remote", "work from home", "wfh", "anywhere", "distributed"];
+
 function normalize(text: string): string {
   return text.toLowerCase().trim().replace(/\s+/g, " ");
 }
 
-// Helper: Extract keywords from text (for fallback role matching)
-function extractKeywords(text: string): string[] {
+function tokenize(text: string): string[] {
   return normalize(text)
-    .split(/[\s,/\-&]/)
-    .filter((word) => word.length > 2);
+    .split(/[\s,/\-&()]+/)
+    .map((token) => token.trim())
+    .filter((token) => token.length > 1);
+}
+
+function unique(values: string[]): string[] {
+  return Array.from(new Set(values));
+}
+
+function overlapRatio(a: string[], b: string[]): number {
+  if (a.length === 0 || b.length === 0) return 0;
+
+  const setB = new Set(b);
+  const overlap = unique(a).filter((token) => setB.has(token)).length;
+  return overlap / Math.max(unique(a).length, unique(b).length);
+}
+
+function normalizeSkillTerm(skill: string): string {
+  const normalized = normalize(skill).replace(/[^a-z0-9+#.\s]/g, " ").replace(/\s+/g, " ").trim();
+  return SKILL_ALIASES[normalized] ?? normalized;
+}
+
+function scoreSkillPair(jobSkill: string, userSkill: string): number {
+  const normalizedJob = normalizeSkillTerm(jobSkill);
+  const normalizedUser = normalizeSkillTerm(userSkill);
+
+  if (!normalizedJob || !normalizedUser) return 0;
+  if (normalizedJob === normalizedUser) return 1;
+
+  if (normalizedJob.includes(normalizedUser) || normalizedUser.includes(normalizedJob)) {
+    return 0.75;
+  }
+
+  const tokenScore = overlapRatio(tokenize(normalizedJob), tokenize(normalizedUser));
+  if (tokenScore > 0) {
+    return Math.min(0.85, 0.45 + tokenScore * 0.4);
+  }
+
+  return 0;
+}
+
+function sharesRoleFamily(userRole: string, jobTitle: string): boolean {
+  return ROLE_ALIAS_GROUPS.some((group) => {
+    const userHas = group.some((alias) => userRole.includes(alias));
+    const jobHas = group.some((alias) => jobTitle.includes(alias));
+    return userHas && jobHas;
+  });
+}
+
+function isRemoteLocation(value: string): boolean {
+  const normalizedValue = normalize(value);
+  return REMOTE_KEYWORDS.some((keyword) => normalizedValue.includes(keyword));
+}
+
+function locationTokens(value: string): string[] {
+  return tokenize(value).filter((token) => !LOCATION_STOP_WORDS.has(token));
+}
+
+function inferCountryToken(tokens: string[]): string | null {
+  if (tokens.length === 0) return null;
+
+  const normalizedTokens = new Set(tokens);
+  if (normalizedTokens.has("bangladesh") || normalizedTokens.has("bd")) return "bangladesh";
+  if (normalizedTokens.has("india") || normalizedTokens.has("in")) return "india";
+  if (normalizedTokens.has("usa") || normalizedTokens.has("us") || normalizedTokens.has("united") || normalizedTokens.has("states")) {
+    return "usa";
+  }
+
+  return null;
 }
 
 /**
@@ -51,23 +146,34 @@ export function calculateSkillScore(
     return { score: 1.0, matched: [], missing: [] };
   }
 
-  const normalizedUserSkills = userSkills.map(normalize).filter(Boolean);
-  const normalizedJobSkills = jobRequiredSkills.map(normalize).filter(Boolean);
+  const userSkillPool = unique((userSkills ?? []).map((skill) => skill?.trim()).filter(Boolean) as string[]);
+  const requiredSkills = unique((jobRequiredSkills ?? []).map((skill) => skill?.trim()).filter(Boolean) as string[]);
 
-  // Find matched skills
-  const matched = normalizedJobSkills.filter((skill) =>
-    normalizedUserSkills.some((userSkill) => userSkill.includes(skill) || skill.includes(userSkill))
-  );
+  if (requiredSkills.length === 0) {
+    return { score: 1.0, matched: [], missing: [] };
+  }
 
-  // Find missing skills
-  const missing = normalizedJobSkills.filter((skill) => !matched.includes(skill));
+  if (userSkillPool.length === 0) {
+    return { score: 0, matched: [], missing: requiredSkills };
+  }
 
-  const score = normalizedJobSkills.length > 0 ? matched.length / normalizedJobSkills.length : 1.0;
+  const perSkillScores = requiredSkills.map((jobSkill) => {
+    const best = userSkillPool.reduce((maxScore, userSkill) => {
+      const pairScore = scoreSkillPair(jobSkill, userSkill);
+      return Math.max(maxScore, pairScore);
+    }, 0);
+
+    return { jobSkill, score: best };
+  });
+
+  const matched = perSkillScores.filter((entry) => entry.score >= 0.6).map((entry) => entry.jobSkill);
+  const missing = perSkillScores.filter((entry) => entry.score < 0.45).map((entry) => entry.jobSkill);
+  const score = perSkillScores.reduce((sum, entry) => sum + entry.score, 0) / perSkillScores.length;
 
   return {
     score: Math.min(1.0, score),
-    matched: matched.length > 0 ? matched : [],
-    missing: missing.length > 0 ? missing : [],
+    matched,
+    missing,
   };
 }
 
@@ -83,37 +189,32 @@ export function calculateRoleScore(userTargetRole: string | null | undefined, jo
   const normalizedUserRole = normalize(userTargetRole);
   const normalizedJobTitle = normalize(jobTitle);
 
-  // Exact match or contains
-  if (normalizedUserRole === normalizedJobTitle || normalizedJobTitle.includes(normalizedUserRole) || normalizedUserRole.includes(normalizedJobTitle)) {
+  if (normalizedUserRole === normalizedJobTitle) {
     return 1.0;
   }
 
-  // Check keyword overlap
-  const userKeywords = extractKeywords(normalizedUserRole);
-  const jobKeywords = extractKeywords(normalizedJobTitle);
-
-  const overlap = userKeywords.filter((keyword) => jobKeywords.some((jobKeyword) => jobKeyword.includes(keyword) || keyword.includes(jobKeyword)));
-
-  if (overlap.length > 0) {
-    return 0.6; // Partial match
+  if (normalizedJobTitle.includes(normalizedUserRole) || normalizedUserRole.includes(normalizedJobTitle)) {
+    return 0.9;
   }
 
-  // Check for common role patterns
-  const rolePatterns: Record<string, string[]> = {
-    developer: ["engineer", "programmer", "developer", "coder"],
-    designer: ["ui", "ux", "graphic", "product", "designer"],
-    manager: ["lead", "manager", "director", "head"],
-    analyst: ["analyst", "data", "business", "product"],
-  };
+  const userKeywords = tokenize(normalizedUserRole);
+  const jobKeywords = tokenize(normalizedJobTitle);
+  const tokenOverlap = overlapRatio(userKeywords, jobKeywords);
+  const familyMatch = sharesRoleFamily(normalizedUserRole, normalizedJobTitle);
 
-  for (const [pattern, aliases] of Object.entries(rolePatterns)) {
-    if (normalizedUserRole.includes(pattern)) {
-      const jobMatches = aliases.some((alias) => normalizedJobTitle.includes(alias));
-      if (jobMatches) return 0.5;
-    }
+  if (familyMatch && tokenOverlap > 0) {
+    return 0.8;
   }
 
-  return 0; // No relation
+  if (familyMatch) {
+    return 0.7;
+  }
+
+  if (tokenOverlap > 0) {
+    return Math.min(0.8, 0.4 + tokenOverlap * 0.4);
+  }
+
+  return 0.1;
 }
 
 /**
@@ -128,37 +229,40 @@ export function calculateLocationScore(userLocation: string | null | undefined, 
   const normalizedUserLocation = normalize(userLocation);
   const normalizedJobLocation = normalize(jobLocation);
 
-  // Check for remote
-  const remoteKeywords = ["remote", "work from home", "anywhere", "wfh"];
-  if (remoteKeywords.some((keyword) => normalizedJobLocation.includes(keyword))) {
-    return 1.0; // Remote is always good
+  const userWantsRemote = isRemoteLocation(normalizedUserLocation);
+  const jobIsRemote = isRemoteLocation(normalizedJobLocation);
+
+  if (jobIsRemote) {
+    return userWantsRemote ? 1.0 : 0.95;
   }
 
-  // Same city
+  if (userWantsRemote && !jobIsRemote) {
+    return 0.35;
+  }
+
   if (normalizedUserLocation === normalizedJobLocation) {
     return 1.0;
   }
 
-  // Extract city/country parts (rough heuristic)
-  const userParts = normalizedUserLocation.split(/[,/]/);
-  const jobParts = normalizedJobLocation.split(/[,/]/);
-
-  // Same country (last part usually country)
-  if (userParts.length > 0 && jobParts.length > 0) {
-    const userCountry = userParts[userParts.length - 1].trim();
-    const jobCountry = jobParts[jobParts.length - 1].trim();
-
-    if (userCountry === jobCountry) {
-      return 0.5; // Same country but different city
-    }
+  if (normalizedJobLocation.includes(normalizedUserLocation) || normalizedUserLocation.includes(normalizedJobLocation)) {
+    return 0.85;
   }
 
-  // Partial match (city/region)
-  if (userParts[0] && jobParts[0] && userParts[0].trim() === jobParts[0].trim()) {
-    return 0.6;
+  const userTokens = locationTokens(normalizedUserLocation);
+  const jobTokens = locationTokens(normalizedJobLocation);
+  const tokenOverlap = overlapRatio(userTokens, jobTokens);
+
+  if (tokenOverlap > 0) {
+    return Math.min(0.82, 0.45 + tokenOverlap * 0.37);
   }
 
-  return 0; // Different locations
+  const userCountry = inferCountryToken(userTokens);
+  const jobCountry = inferCountryToken(jobTokens);
+  if (userCountry && jobCountry && userCountry === jobCountry) {
+    return 0.55;
+  }
+
+  return 0.1;
 }
 
 /**
@@ -187,17 +291,23 @@ export function calculateExperienceScore(
     return 1.0;
   }
 
-  // Slightly below (within 1-2 years)
-  if (userYearsExperience >= min - 2 && userYearsExperience < min) {
+  if (userYearsExperience < min) {
+    const gap = min - userYearsExperience;
+    if (gap <= 1) return 0.82;
+    if (gap <= 2) return 0.65;
+    if (gap <= 4) return 0.42;
+    return 0.12;
+  }
+
+  if (userYearsExperience > max) {
+    const gap = userYearsExperience - max;
+    if (gap <= 2) return 0.92;
+    if (gap <= 5) return 0.78;
+    if (gap <= 10) return 0.62;
     return 0.5;
   }
 
-  // Above maximum (still somewhat qualified)
-  if (userYearsExperience > max) {
-    return 0.3; // Over-qualified but still somewhat relevant
-  }
-
-  return 0; // Significantly below or no match
+  return 0;
 }
 
 /**

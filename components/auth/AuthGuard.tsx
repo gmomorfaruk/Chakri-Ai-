@@ -12,37 +12,73 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
+
+    const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+    const getSessionWithRetry = async () => {
+      const maxAttempts = 3;
+
+      for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+        try {
+          return await supabase!.auth.getSession();
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "";
+          const isLockError = message.includes("Lock broken by another request");
+          const canRetry = isLockError && attempt < maxAttempts;
+
+          if (!canRetry) {
+            throw error;
+          }
+
+          await delay(150 * attempt);
+        }
+      }
+
+      return { data: { session: null } };
+    };
+
+    const redirectToSignIn = () => {
+      router.replace("/sign-in");
+    };
+
     async function checkSession() {
       if (!supabase) {
-        router.replace("/sign-in");
+        if (!cancelled) {
+          redirectToSignIn();
+          setChecking(false);
+        }
         return;
       }
 
       try {
-        const { data } = await supabase.auth.getSession();
+        const { data } = await getSessionWithRetry();
         if (!data.session) {
-          router.replace("/sign-in");
+          if (!cancelled) {
+            redirectToSignIn();
+          }
           return;
         }
-      } catch (error) {
-        const message = error instanceof Error ? error.message : "";
-        if (message.includes("Lock broken by another request")) {
-          await new Promise((resolve) => setTimeout(resolve, 150));
-          const { data } = await supabase.auth.getSession();
-          if (!data.session) {
-            router.replace("/sign-in");
-            return;
-          }
-        } else {
-          router.replace("/sign-in");
-          return;
+
+        if (!cancelled) {
+          setChecking(false);
+        }
+      } catch {
+        if (!cancelled) {
+          redirectToSignIn();
+        }
+      } finally {
+        if (!cancelled) {
+          setChecking(false);
         }
       }
-
-      setChecking(false);
     }
 
     void checkSession();
+
+    return () => {
+      cancelled = true;
+    };
   }, [supabase, router]);
 
   if (checking) {

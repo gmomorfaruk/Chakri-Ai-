@@ -9,7 +9,10 @@ import {
   Skill,
 } from "@/types/profile";
 
-type ProfileUpdate = Pick<Profile, "username" | "full_name" | "bio" | "avatar_url" | "theme" | "is_public">;
+type ProfileUpdate = Pick<
+  Profile,
+  "username" | "full_name" | "bio" | "avatar_url" | "target_role" | "preferred_location" | "years_experience" | "theme" | "is_public"
+>;
 type ProfileBootstrap = Partial<ProfileUpdate>;
 type InsertEducation = Omit<Education, "id">;
 type InsertSkill = Omit<Skill, "id">;
@@ -44,7 +47,30 @@ export async function fetchProfileBundle(supabase: SupabaseClient, userId: strin
 }
 
 export async function upsertProfile(supabase: SupabaseClient, userId: string, payload: ProfileUpdate) {
-  return supabase.from("profiles").upsert({ id: userId, ...payload }).select("*").single();
+  const primaryResult = await supabase.from("profiles").upsert({ id: userId, ...payload }).select("*").single();
+
+  if (!primaryResult.error) {
+    return primaryResult;
+  }
+
+  const missingMatchingColumn =
+    primaryResult.error.code === "42703" ||
+    /target_role|preferred_location|years_experience/i.test(primaryResult.error.message);
+
+  if (!missingMatchingColumn) {
+    return primaryResult;
+  }
+
+  const legacyPayload = {
+    username: payload.username,
+    full_name: payload.full_name,
+    bio: payload.bio,
+    avatar_url: payload.avatar_url,
+    theme: payload.theme,
+    is_public: payload.is_public,
+  };
+
+  return supabase.from("profiles").upsert({ id: userId, ...legacyPayload }).select("*").single();
 }
 
 export async function ensureProfileExists(supabase: SupabaseClient, userId: string, payload: ProfileBootstrap = {}) {

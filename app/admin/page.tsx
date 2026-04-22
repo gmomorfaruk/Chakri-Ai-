@@ -24,6 +24,30 @@ export default function AdminPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase]);
 
+  async function getUserWithRetry() {
+    if (!supabase) {
+      return { user: null };
+    }
+
+    const maxAttempts = 3;
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      try {
+        const { data } = await supabase.auth.getUser();
+        return data;
+      } catch (authError) {
+        const message = authError instanceof Error ? authError.message : "";
+        const isLockError = message.includes("Lock broken by another request");
+        if (!isLockError || attempt === maxAttempts) {
+          throw authError;
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 120 * attempt));
+      }
+    }
+
+    return { user: null };
+  }
+
   async function checkAccess() {
     if (!supabase) {
       setError(t("profileSupabaseMissing"));
@@ -31,31 +55,40 @@ export default function AdminPage() {
       return;
     }
 
-    const { data: auth } = await supabase.auth.getUser();
-    if (!auth.user) {
+    setView("checking");
+    setError(null);
+
+    try {
+      const auth = await getUserWithRetry();
+      if (!auth.user) {
+        setView("login");
+        return;
+      }
+
+      const { data: profile, error: roleError } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", auth.user.id)
+        .maybeSingle();
+
+      if (roleError) {
+        setError(roleError.message);
+        setView("denied");
+        return;
+      }
+
+      if (profile?.role !== "admin") {
+        setError(t("adminAccessDenied"));
+        setView("denied");
+        return;
+      }
+
+      setView("ready");
+    } catch (accessError) {
+      const message = accessError instanceof Error ? accessError.message : t("adminAccessDenied");
+      setError(message);
       setView("login");
-      return;
     }
-
-    const { data: profile, error: roleError } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", auth.user.id)
-      .maybeSingle();
-
-    if (roleError) {
-      setError(roleError.message);
-      setView("denied");
-      return;
-    }
-
-    if (profile?.role !== "admin") {
-      setError(t("adminAccessDenied"));
-      setView("denied");
-      return;
-    }
-
-    setView("ready");
   }
 
   async function onLogin(e: React.FormEvent<HTMLFormElement>) {
@@ -66,14 +99,29 @@ export default function AdminPage() {
       return;
     }
     setAuthLoading(true);
-    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-    if (signInError) {
+
+    try {
+      const { error: signInError } = await Promise.race([
+        supabase.auth.signInWithPassword({ email, password }),
+        new Promise<never>((_, reject) => {
+          window.setTimeout(() => {
+            reject(new Error("Sign in timed out. Please check your internet connection and try again."));
+          }, 15000);
+        }),
+      ]);
+
+      if (signInError) {
+        setError(signInError.message);
+        return;
+      }
+
+      await checkAccess();
+    } catch (loginError) {
+      const message = loginError instanceof Error ? loginError.message : t("adminAccessDenied");
+      setError(message);
+    } finally {
       setAuthLoading(false);
-      setError(signInError.message);
-      return;
     }
-    await checkAccess();
-    setAuthLoading(false);
   }
 
   async function onSignOut() {

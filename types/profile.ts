@@ -6,6 +6,9 @@ export interface Profile {
   full_name: string | null;
   bio: string | null;
   avatar_url: string | null;
+  target_role: string | null;
+  preferred_location: string | null;
+  years_experience: number | null;
   theme: string | null;
   is_public: boolean;
 }

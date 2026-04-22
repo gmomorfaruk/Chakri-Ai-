@@ -33,6 +33,19 @@ export default function SignInPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  async function signInWithTimeout(emailValue: string, passwordValue: string) {
+    const SIGN_IN_TIMEOUT_MS = 15000;
+
+    return Promise.race([
+      supabase!.auth.signInWithPassword({ email: emailValue, password: passwordValue }),
+      new Promise<never>((_, reject) => {
+        window.setTimeout(() => {
+          reject(new Error("Sign in timed out. Please check your internet connection and try again."));
+        }, SIGN_IN_TIMEOUT_MS);
+      }),
+    ]);
+  }
+
   useEffect(() => {
     let mounted = true;
 
@@ -99,15 +112,22 @@ export default function SignInPage() {
     }
 
     setLoading(true);
-    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-    setLoading(false);
+    try {
+      const { error: signInError } = await signInWithTimeout(email, password);
 
-    if (signInError) {
-      setError(signInError.message);
-      return;
+      if (signInError) {
+        setError(signInError.message);
+        return;
+      }
+
+      router.replace("/dashboard");
+      router.refresh();
+    } catch (submitError) {
+      const message = submitError instanceof Error ? submitError.message : "Unable to sign in right now. Please try again.";
+      setError(message);
+    } finally {
+      setLoading(false);
     }
-
-    router.push("/dashboard");
   }
 
   return (

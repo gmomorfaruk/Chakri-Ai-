@@ -201,6 +201,9 @@ export function ProfileModule() {
     full_name: "",
     bio: "",
     avatar_url: "",
+    target_role: "",
+    preferred_location: "",
+    years_experience: "",
     theme: "minimal",
     is_public: false,
   });
@@ -430,6 +433,12 @@ export function ProfileModule() {
       full_name: data.profile?.full_name ?? "",
       bio: data.profile?.bio ?? "",
       avatar_url: data.profile?.avatar_url ?? "",
+      target_role: data.profile?.target_role ?? "",
+      preferred_location: data.profile?.preferred_location ?? "",
+      years_experience:
+        data.profile?.years_experience === null || data.profile?.years_experience === undefined
+          ? ""
+          : String(data.profile.years_experience),
       theme: data.profile?.theme ?? "minimal",
       is_public: data.profile?.is_public ?? false,
     });
@@ -461,6 +470,21 @@ export function ProfileModule() {
       return;
     }
 
+    const yearsExperienceInput = profileForm.years_experience.trim();
+    let yearsExperience: number | null = null;
+
+    if (yearsExperienceInput) {
+      const parsedYears = Number(yearsExperienceInput);
+      const isInvalidYears = !Number.isFinite(parsedYears) || parsedYears < 0 || parsedYears > 60;
+
+      if (isInvalidYears) {
+        setError("Years of experience must be a number between 0 and 60.");
+        return;
+      }
+
+      yearsExperience = Math.round(parsedYears * 10) / 10;
+    }
+
     setSaving(true);
     setError(null);
 
@@ -471,6 +495,9 @@ export function ProfileModule() {
       full_name: profileForm.full_name.trim(),
       bio: profileForm.bio.trim() || null,
       avatar_url: profileForm.avatar_url.trim() || null,
+      target_role: profileForm.target_role.trim() || null,
+      preferred_location: profileForm.preferred_location.trim() || null,
+      years_experience: yearsExperience,
       theme: profileForm.theme,
       // Public visibility is gated by admin approval.
       is_public: requestedPublicVisibility ? false : profileForm.is_public,
@@ -498,6 +525,9 @@ export function ProfileModule() {
       payload: {
         full_name: profileForm.full_name.trim(),
         username: normalizedUsername || null,
+        target_role: profileForm.target_role.trim() || null,
+        preferred_location: profileForm.preferred_location.trim() || null,
+        years_experience: yearsExperience,
         theme: profileForm.theme,
         requested_public_visibility: requestedPublicVisibility,
       },
@@ -1191,6 +1221,42 @@ System joke: recruiter.exe found your profile and crashed from too much talent.`
                   onChange={(event) => setProfileForm((prev) => ({ ...prev, bio: event.target.value }))}
                   className="w-full rounded-xl border border-white/15 bg-[#060b14] px-3 py-2 text-sm outline-none focus:border-cyan-300/40"
                 />
+
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div>
+                    <label className="block text-xs uppercase tracking-[0.2em] text-slate-400">Target role</label>
+                    <input
+                      value={profileForm.target_role}
+                      onChange={(event) => setProfileForm((prev) => ({ ...prev, target_role: event.target.value }))}
+                      placeholder="e.g. Frontend Engineer"
+                      className="mt-1 w-full rounded-xl border border-white/15 bg-[#060b14] px-3 py-2 text-sm outline-none focus:border-cyan-300/40"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs uppercase tracking-[0.2em] text-slate-400">Preferred location</label>
+                    <input
+                      value={profileForm.preferred_location}
+                      onChange={(event) => setProfileForm((prev) => ({ ...prev, preferred_location: event.target.value }))}
+                      placeholder="e.g. Dhaka or Remote"
+                      className="mt-1 w-full rounded-xl border border-white/15 bg-[#060b14] px-3 py-2 text-sm outline-none focus:border-cyan-300/40"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs uppercase tracking-[0.2em] text-slate-400">Years of experience</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={60}
+                    step="0.5"
+                    value={profileForm.years_experience}
+                    onChange={(event) => setProfileForm((prev) => ({ ...prev, years_experience: event.target.value }))}
+                    placeholder="e.g. 2.5"
+                    className="mt-1 w-full rounded-xl border border-white/15 bg-[#060b14] px-3 py-2 text-sm outline-none focus:border-cyan-300/40"
+                  />
+                  <p className="mt-1 text-xs text-slate-500">Used by Smart Match to score experience fit.</p>
+                </div>
 
                 <label className="inline-flex items-center gap-2 text-sm text-slate-300">
                   <input

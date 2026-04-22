@@ -42,10 +42,10 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
   if (navMode === "navbar") {
     return (
-      <div className="flex min-h-screen w-full overflow-x-hidden bg-background text-foreground" style={rootStyle}>
+      <div className="flex min-h-screen h-[100dvh] w-full overflow-hidden bg-background text-foreground" style={rootStyle}>
         <div className="flex min-w-0 flex-1 flex-col">
           <DashboardNavbar navMode={navMode} onToggleNavMode={toggleNavMode} />
-          <main className="relative flex-1 min-w-0 overflow-x-hidden overflow-y-auto bg-background/75 px-3 py-3 sm:px-4 sm:py-4 md:px-8 md:py-5">
+          <main className="relative flex-1 min-w-0 overflow-x-hidden overflow-y-auto overscroll-contain bg-background/75 px-3 py-2 sm:px-4 sm:py-3 md:px-8 md:py-4">
             <AuthGuard>
               <div className="mx-auto min-w-0 max-w-7xl">{children}</div>
             </AuthGuard>
@@ -56,11 +56,11 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="flex min-h-screen w-full overflow-x-hidden bg-background text-foreground" style={rootStyle}>
+    <div className="flex min-h-screen h-[100dvh] w-full overflow-hidden bg-background text-foreground" style={rootStyle}>
       <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar navMode={navMode} onToggleNavMode={toggleNavMode} />
-        <main className="relative flex-1 min-w-0 overflow-x-hidden overflow-y-auto bg-background/75 px-3 py-4 pt-3 sm:px-4 sm:py-5 sm:pt-4 md:px-8 md:py-6 md:pt-8">
+        <main className="relative flex-1 min-w-0 overflow-x-hidden overflow-y-auto overscroll-contain bg-background/75 px-3 py-3 pt-2 sm:px-4 sm:py-4 sm:pt-3 md:px-8 md:py-5 md:pt-6">
           <AuthGuard>
             <div className="mx-auto min-w-0 max-w-7xl">{children}</div>
           </AuthGuard>

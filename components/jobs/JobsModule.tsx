@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { BarChart3, BriefcaseBusiness, Check, Circle, ClipboardCheck, Dot, Layers3, Sparkles } from "lucide-react";
 import { useI18n } from "@/components/providers/I18nProvider";
@@ -81,6 +81,9 @@ export function JobsModule() {
   const [selectedJobDetails, setSelectedJobDetails] = useState<UnifiedJobRecord | null>(null);
   const [matchingPrefillDescription, setMatchingPrefillDescription] = useState("");
   const [matchingPrefillJobId, setMatchingPrefillJobId] = useState("");
+  const hasPrefetchedDiscoveryRef = useRef(false);
+  const discoveryAbortControllerRef = useRef<AbortController | null>(null);
+  const discoveryRequestKeyRef = useRef<string | null>(null);
 
   const [postForm, setPostForm] = useState({
     title: "",
@@ -137,6 +140,13 @@ export function JobsModule() {
   }, [supabase]);
 
   useEffect(() => {
+    return () => {
+      discoveryAbortControllerRef.current?.abort();
+      discoveryAbortControllerRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
     setSavedJobs(loadSavedJobs());
   }, []);
 
@@ -188,7 +198,11 @@ export function JobsModule() {
       const currentRole = await getCurrentUserProfileRole(supabase, authData.user.id);
       setRole(currentRole === "admin" ? "admin" : "user");
       await reload(authData.user.id, currentRole === "admin");
-      await loadDiscoveryJobs(1, true);
+
+      if (!hasPrefetchedDiscoveryRef.current) {
+        hasPrefetchedDiscoveryRef.current = true;
+        void loadDiscoveryJobs(1, true);
+      }
     } catch (initError) {
       setError(getErrorMessage(initError, t("jobsModuleLoadFailed")));
     } finally {
@@ -227,22 +241,37 @@ export function JobsModule() {
   }
 
   async function loadDiscoveryJobs(page = 1, reset = false) {
+    const params = new URLSearchParams({
+      scope: "all",
+      page: String(page),
+      limit: "12",
+    });
+
+    if (discoverySearch.trim()) params.set("search", discoverySearch.trim());
+    if (discoveryLocation.trim()) params.set("location", discoveryLocation.trim());
+    if (discoverySkill.trim()) params.set("skill", discoverySkill.trim());
+    if (discoveryCategory.trim()) params.set("category", discoveryCategory.trim());
+
+    const requestKey = `${page}|${reset ? "reset" : "append"}|${params.toString()}`;
+    if (requestKey === discoveryRequestKeyRef.current && discoveryLoading) {
+      return;
+    }
+
+    discoveryRequestKeyRef.current = requestKey;
+
+    if (reset && discoveryAbortControllerRef.current) {
+      discoveryAbortControllerRef.current.abort();
+    }
+
+    const controller = new AbortController();
+    discoveryAbortControllerRef.current = controller;
+
     setDiscoveryLoading(true);
 
     try {
-      const params = new URLSearchParams({
-        scope: "all",
-        page: String(page),
-        limit: "12",
-      });
-
-      if (discoverySearch.trim()) params.set("search", discoverySearch.trim());
-      if (discoveryLocation.trim()) params.set("location", discoveryLocation.trim());
-      if (discoverySkill.trim()) params.set("skill", discoverySkill.trim());
-      if (discoveryCategory.trim()) params.set("category", discoveryCategory.trim());
-
       const response = await fetch(`/api/jobs/discovery?${params.toString()}`, {
         cache: "no-store",
+        signal: controller.signal,
       });
       const payload = (await response.json()) as DiscoveryApiResponse;
 
@@ -261,11 +290,18 @@ export function JobsModule() {
       setDiscoveryPage(payload.page || page);
       setDiscoveryHasMore(Boolean(payload.hasMore));
     } catch (loadError) {
+      if (loadError instanceof DOMException && loadError.name === "AbortError") {
+        return;
+      }
+
       setError(getErrorMessage(loadError, t("externalJobsLoadFailed")));
       if (reset) {
         setExternalJobs([]);
       }
     } finally {
+      if (discoveryAbortControllerRef.current === controller) {
+        discoveryAbortControllerRef.current = null;
+      }
       setDiscoveryLoading(false);
     }
   }
@@ -279,12 +315,19 @@ export function JobsModule() {
     if (!supabase || !userId) return;
 
     await runMutation(async () => {
+      const roleTitle = (job.title || "").trim();
+      const companyName = (job.company || "").trim();
+
+      if (!roleTitle || !companyName) {
+        throw new Error(t("jobTrackerValidation"));
+      }
+
       const { data: existing, error: existingError } = await supabase
         .from("job_applications")
         .select("id")
         .eq("user_id", userId)
-        .eq("role_title", job.title)
-        .eq("company", job.company)
+        .eq("role_title", roleTitle)
+        .eq("company", companyName)
         .limit(1);
 
       if (existingError) {
@@ -298,8 +341,8 @@ export function JobsModule() {
       const { data: createdApp, error: appError } = await createJobApplication(supabase, {
         user_id: userId,
         job_post_id: null,
-        role_title: job.title,
-        company: job.company,
+        role_title: roleTitle,
+        company: companyName,
         status: "applied",
         applied_at: new Date().toISOString().slice(0, 10),
         follow_up_date: null,
@@ -311,7 +354,21 @@ export function JobsModule() {
         throw appError;
       }
 
-      await Promise.allSettled([
+      if (createdApp?.id) {
+        setApplications((prev) => {
+          const alreadyExists = prev.some((app) => app.id === createdApp.id);
+          if (alreadyExists) {
+            return prev;
+          }
+
+          return [createdApp as JobApplication, ...prev];
+        });
+      }
+
+      setActiveTab("tracker");
+      setShowTrackerForm(false);
+
+      void Promise.allSettled([
         logActivity(supabase, {
           user_id: userId,
           actor_role: role,
@@ -320,68 +377,63 @@ export function JobsModule() {
           severity: "info",
           source: "jobs_module",
           metadata: {
-            role_title: job.title,
-            company: job.company,
+            role_title: roleTitle,
+            company: companyName,
             source: job.source,
             source_type: job.source_type,
           },
         }),
-      ]);
-
-      await createApprovalRequest(supabase, {
-        requested_by: userId,
-        request_type: "job_application",
-        resource_type: "job_application",
-        resource_id: createdApp?.id ?? null,
-        title: "Job application submitted for admin review",
-        summary: `${job.title} at ${job.company}`,
-        payload: {
-          source: job.source,
-          source_type: job.source_type,
-          role_title: job.title,
-          company: job.company,
-          status: "applied",
-        },
-      });
-
-      await createApprovalRequest(supabase, {
-        requested_by: userId,
-        request_type: "user_activity",
-        resource_type: "activity",
-        title: "User activity: added discovered job to tracker",
-        summary: `${job.title} at ${job.company}`,
-        payload: {
-          activity: "job_added_to_tracker",
-          source: "jobs_module",
-          job_title: job.title,
-          company: job.company,
-        },
-      });
-
-      await reload(userId, role === "admin");
-
-      void syncAdaptiveSignals(supabase, {
-        signals: [
-          {
-            domain: "jobs",
-            signalType: "job_added_to_tracker",
-            metricValue: 1,
+        createApprovalRequest(supabase, {
+          requested_by: userId,
+          request_type: "job_application",
+          resource_type: "job_application",
+          resource_id: createdApp?.id ?? null,
+          title: "Job application submitted for admin review",
+          summary: `${roleTitle} at ${companyName}`,
+          payload: {
+            source: job.source,
+            source_type: job.source_type,
+            role_title: roleTitle,
+            company: companyName,
+            status: "applied",
+          },
+        }),
+        createApprovalRequest(supabase, {
+          requested_by: userId,
+          request_type: "user_activity",
+          resource_type: "activity",
+          title: "User activity: added discovered job to tracker",
+          summary: `${roleTitle} at ${companyName}`,
+          payload: {
+            activity: "job_added_to_tracker",
             source: "jobs_module",
-            payload: {
-              title: job.title,
-              company: job.company,
-              source: job.source,
-              sourceType: job.source_type,
+            job_title: roleTitle,
+            company: companyName,
+          },
+        }),
+        syncAdaptiveSignals(supabase, {
+          signals: [
+            {
+              domain: "jobs",
+              signalType: "job_added_to_tracker",
+              metricValue: 1,
+              source: "jobs_module",
+              payload: {
+                title: roleTitle,
+                company: companyName,
+                source: job.source,
+                sourceType: job.source_type,
+              },
+            },
+          ],
+          summary: {
+            jobs: {
+              appliedIncrement: 1,
+              savedCount: savedJobs.size,
             },
           },
-        ],
-        summary: {
-          jobs: {
-            appliedIncrement: 1,
-            savedCount: savedJobs.size,
-          },
-        },
-      });
+        }),
+      ]);
     }, t("failedAddJobTracker"));
   }
 
