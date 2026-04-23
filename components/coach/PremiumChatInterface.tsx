@@ -48,6 +48,7 @@ export function PremiumChatInterface() {
   const [error, setError] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [mode, setMode] = useState<CoachMode>("hr");
+  const [showSessionComplete, setShowSessionComplete] = useState(false);
 
   // Session & Message state
   const [sessions, setSessions] = useState<CoachSession[]>([]);
@@ -388,106 +389,183 @@ export function PremiumChatInterface() {
 
   return (
     <div className="ui-page flex h-full min-h-0 w-full overflow-hidden bg-gradient-to-b from-[#0f1628] to-[#0a0f1e]">
-      <div className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden">
-        <div className="border-b border-white/10 px-4 py-3 sm:px-6">
-          <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex flex-wrap items-center gap-2">
-              {([
-                { id: "hr", label: t("hrMode") || "HR" },
-                { id: "technical", label: t("technicalMode") || "Technical" },
-                { id: "behavioral", label: t("behavioralMode") || "Behavioral" },
-              ] as Array<{ id: CoachMode; label: string }>).map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => setMode(item.id)}
-                  className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-all ${
-                    mode === item.id
-                      ? "bg-gradient-to-r from-blue-500 to-cyan-500 text-white"
-                      : "border border-white/15 bg-white/5 text-slate-300 hover:border-cyan-300/35 hover:bg-cyan-500/10"
-                  }`}
-                >
-                  {item.label}
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={() => void createNewSession()}
-                className="rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-semibold text-slate-200 transition-all hover:border-cyan-300/35 hover:bg-cyan-500/10"
-              >
-                {t("newSession") || "New Chat"}
-              </button>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-4">
-              {evaluation ? (
-                <div className="flex items-center gap-6">
-                  <CircularProgress
-                    value={evaluation.answer_clarity_score}
-                    label="Clarity"
-                    color="cyan"
-                    size="sm"
-                  />
-                  <CircularProgress
-                    value={evaluation.confidence_score}
-                    label="Confidence"
-                    color="blue"
-                    size="sm"
-                  />
-                  <CircularProgress
-                    value={evaluation.relevance_score}
-                    label="Relevance"
-                    color="purple"
-                    size="sm"
-                  />
-                </div>
-              ) : null}
-
-              <select
-                value={activeSessionId ?? ""}
-                onChange={(event) => {
-                  const sessionId = event.target.value;
-                  if (sessionId) {
-                    void loadSession(sessionId);
-                  }
-                }}
-                className="max-w-[16rem] rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-slate-200 outline-none focus:border-cyan-300/45"
-                aria-label={t("sessionHistory") || "Session history"}
-              >
-                <option value="">{t("sessionHistory") || "Session History"}</option>
-                {sessions.map((session) => (
-                  <option key={session.id} value={session.id}>
-                    {session.title ?? "Untitled"}
-                  </option>
-                ))}
-              </select>
-            </div>
+      <div className="flex h-full min-h-0 w-full min-w-0">
+        {/* Sidebar with Progress Bars */}
+        <div className="hidden w-80 flex-col border-r border-white/10 bg-white/[0.02] lg:flex">
+          <div className="border-b border-white/10 px-6 py-4">
+            <h3 className="text-sm font-semibold text-slate-200">Session Progress</h3>
+            <p className="mt-1 text-xs text-slate-400">Your performance metrics</p>
+          </div>
+          <div className="flex flex-1 flex-col items-center justify-center gap-8 p-6">
+            {evaluation ? (
+              <>
+                <CircularProgress
+                  value={evaluation.answer_clarity_score}
+                  label="Clarity"
+                  color="cyan"
+                  size="lg"
+                />
+                <CircularProgress
+                  value={evaluation.confidence_score}
+                  label="Confidence"
+                  color="blue"
+                  size="lg"
+                />
+                <CircularProgress
+                  value={evaluation.relevance_score}
+                  label="Relevance"
+                  color="purple"
+                  size="lg"
+                />
+              </>
+            ) : (
+              <div className="text-center text-sm text-slate-400">
+                Start chatting to see your progress metrics
+              </div>
+            )}
           </div>
         </div>
 
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <ChatWindow
-            messages={messages}
-            streamingText={streamingText}
-            isThinking={isThinking}
-            messagesEndRef={messagesEndRef}
-            mode={mode}
-            onQuickPrompt={(prompt) => {
-              if (!isThinking) {
-                void onSendMessage(prompt);
-              }
-            }}
-          />
+        {/* Main Content */}
+        <div className="flex min-h-0 w-full flex-col overflow-hidden">
+          {/* Header */}
+          <div className="border-b border-white/10 px-4 py-3 sm:px-6">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Mode Selection */}
+                <div className="flex flex-wrap items-center gap-2">
+                  {([
+                    { id: "hr", label: t("hrMode") || "HR", icon: "👔" },
+                    { id: "technical", label: t("technicalMode") || "Technical", icon: "🧠" },
+                    { id: "behavioral", label: t("behavioralMode") || "Behavioral", icon: "💬" },
+                  ] as Array<{ id: CoachMode; label: string; icon: string }>).map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => setMode(item.id)}
+                      className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold transition-all ${
+                        mode === item.id
+                          ? "bg-gradient-to-r from-blue-500 to-cyan-500 text-white"
+                          : "border border-white/15 bg-white/5 text-slate-300 hover:border-cyan-300/35 hover:bg-cyan-500/10"
+                      }`}
+                    >
+                      <span>{item.icon}</span>
+                      <span>{item.label}</span>
+                    </button>
+                  ))}
+                </div>
+                
+                {/* New Session Button */}
+                <button
+                  type="button"
+                  onClick={() => void createNewSession()}
+                  className="rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-semibold text-slate-200 transition-all hover:border-cyan-300/35 hover:bg-cyan-500/10"
+                >
+                  {t("newSession") || "New Session"}
+                </button>
+              </div>
 
-          {error ? (
-            <div className="border-t border-white/5 bg-red-500/10 px-4 py-2">
-              <p className="text-xs text-red-400">{error}</p>
+              {/* Session History */}
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={activeSessionId ?? ""}
+                  onChange={(event) => {
+                    const sessionId = event.target.value;
+                    if (sessionId) {
+                      void loadSession(sessionId);
+                    }
+                  }}
+                  className="max-w-[16rem] rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-slate-200 outline-none focus:border-cyan-300/45"
+                  aria-label={t("sessionHistory") || "Session history"}
+                >
+                  <option value="">{t("sessionHistory") || "Session History"}</option>
+                  {sessions.map((session) => (
+                    <option key={session.id} value={session.id}>
+                      {session.title ?? "Untitled"}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
-          ) : null}
+          </div>
 
-          <ChatInputBar onSendMessage={onSendMessage} isLoading={isThinking} />
+          {/* Chat Area */}
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <ChatWindow
+              messages={messages}
+              streamingText={streamingText}
+              isThinking={isThinking}
+              messagesEndRef={messagesEndRef}
+              mode={mode}
+              onQuickPrompt={(prompt) => {
+                if (!isThinking) {
+                  void onSendMessage(prompt);
+                }
+              }}
+            />
+
+            {error ? (
+              <div className="border-t border-white/5 bg-red-500/10 px-4 py-2">
+                <p className="text-xs text-red-400">{error}</p>
+              </div>
+            ) : null}
+
+            <ChatInputBar onSendMessage={onSendMessage} isLoading={isThinking} />
+          </div>
         </div>
       </div>
+
+      {/* Session Complete Modal */}
+      {showSessionComplete && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-white/20 bg-white/[0.04] p-6 shadow-2xl">
+            <div className="flex items-center gap-3">
+              <div className="h-12 w-12 rounded-full bg-gradient-to-r from-green-500 to-emerald-500 flex items-center justify-center">
+                <span className="text-white text-lg">🎉</span>
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-slate-100">Session Complete!</h3>
+                <p className="text-sm text-slate-400">Great job completing your interview practice</p>
+              </div>
+            </div>
+            
+            <div className="mt-6 grid grid-cols-3 gap-4">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-cyan-300">85%</div>
+                <div className="text-xs text-slate-400">Clarity</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-blue-300">78%</div>
+                <div className="text-xs text-slate-400">Confidence</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-purple-300">92%</div>
+                <div className="text-xs text-slate-400">Relevance</div>
+              </div>
+            </div>
+
+            <div className="mt-6 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setShowSessionComplete(false)}
+                className="flex-1 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 px-4 py-2 text-sm font-semibold text-white"
+              >
+                Continue Practice
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowSessionComplete(false);
+                  void createNewSession();
+                }}
+                className="rounded-full border border-white/20 bg-white/5 px-4 py-2 text-sm font-semibold text-slate-200"
+              >
+                New Session
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
