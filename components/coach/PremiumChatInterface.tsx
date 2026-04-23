@@ -48,7 +48,6 @@ export function PremiumChatInterface() {
   const [error, setError] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [mode, setMode] = useState<CoachMode>("hr");
-  const [showSessionComplete, setShowSessionComplete] = useState(false);
 
   // Session & Message state
   const [sessions, setSessions] = useState<CoachSession[]>([]);
@@ -515,57 +514,6 @@ export function PremiumChatInterface() {
         </div>
       </div>
 
-      {/* Session Complete Modal */}
-      {showSessionComplete && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl border border-white/20 bg-white/[0.04] p-6 shadow-2xl">
-            <div className="flex items-center gap-3">
-              <div className="h-12 w-12 rounded-full bg-gradient-to-r from-green-500 to-emerald-500 flex items-center justify-center">
-                <span className="text-white text-lg">🎉</span>
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold text-slate-100">Session Complete!</h3>
-                <p className="text-sm text-slate-400">Great job completing your interview practice</p>
-              </div>
-            </div>
-            
-            <div className="mt-6 grid grid-cols-3 gap-4">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-cyan-300">85%</div>
-                <div className="text-xs text-slate-400">Clarity</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-blue-300">78%</div>
-                <div className="text-xs text-slate-400">Confidence</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-purple-300">92%</div>
-                <div className="text-xs text-slate-400">Relevance</div>
-              </div>
-            </div>
-
-            <div className="mt-6 flex gap-3">
-              <button
-                type="button"
-                onClick={() => setShowSessionComplete(false)}
-                className="flex-1 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 px-4 py-2 text-sm font-semibold text-white"
-              >
-                Continue Practice
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowSessionComplete(false);
-                  void createNewSession();
-                }}
-                className="rounded-full border border-white/20 bg-white/5 px-4 py-2 text-sm font-semibold text-slate-200"
-              >
-                New Session
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
