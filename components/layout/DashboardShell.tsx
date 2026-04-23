@@ -107,7 +107,7 @@ function DashboardFooter() {
               © {new Date().getFullYear()} Chakri AI. All Rights Reserved.
             </div>
             <div className="text-sm text-slate-400">
-              Website developed by <span className="text-white font-semibold">Md. Omor Faruk</span>
+              Website developed by <a href="https://github.com/gmomorfaruk" target="_blank" rel="noopener noreferrer" className="text-white font-semibold hover:text-blue-300 transition">Md. Omor Faruk</a>
             </div>
             <div className="flex items-center gap-4 text-xs text-slate-500">
               <span>Made with ❤️ in Bangladesh</span>
