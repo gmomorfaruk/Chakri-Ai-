@@ -387,7 +387,7 @@ export function PremiumChatInterface() {
 
   return (
     <div className="ui-page flex h-full min-h-0 w-full overflow-hidden bg-gradient-to-b from-[#0f1628] to-[#0a0f1e]">
-      <div className="mx-auto flex h-full min-h-0 w-full max-w-6xl min-w-0 flex-col overflow-hidden">
+      <div className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden">
         <div className="border-b border-white/10 px-4 py-3 sm:px-6">
           <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex flex-wrap items-center gap-2">
