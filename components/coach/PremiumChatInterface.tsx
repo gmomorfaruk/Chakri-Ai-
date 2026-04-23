@@ -18,8 +18,6 @@ import { ensureProfileExists } from "@/lib/profileService";
 import { CoachEvaluation, CoachMessage, CoachMode, CoachSession } from "@/types/coach";
 import { ChatWindow } from "./ChatWindow";
 import { ChatInputBar } from "./ChatInputBar";
-import { SessionsSidebar } from "./SessionsSidebar";
-import { EvaluationPanel } from "./EvaluationPanel";
 
 function extractRecommendationFromCoachReply(reply: string) {
   const lines = reply
@@ -388,79 +386,94 @@ export function PremiumChatInterface() {
   }
 
   return (
-    <div className="ui-page flex h-full min-h-0 w-full overflow-hidden">
-      {/* Left Sidebar - Sessions */}
-      <SessionsSidebar
-        sessions={sessions}
-        activeSessionId={activeSessionId}
-        mode={mode}
-        onLoadSession={async (sessionId) => {
-          await loadSession(sessionId);
-        }}
-        onCreateSession={createNewSession}
-        onModeChange={setMode}
-      />
-
-      {/* Center - Chat */}
-      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-gradient-to-b from-[#0f1628] to-[#0a0f1e] md:border-l md:border-white/5">
-        {/* Mobile Controls */}
-        <div className="border-b border-white/5 px-3 py-2 md:hidden">
-          <div className="mb-2 flex gap-2 overflow-x-auto pb-1">
-            {([
-              { id: "hr", label: t("hrMode") || "HR" },
-              { id: "technical", label: t("technicalMode") || "Technical" },
-              { id: "behavioral", label: t("behavioralMode") || "Behavioral" },
-            ] as Array<{ id: CoachMode; label: string }>).map((item) => (
+    <div className="ui-page flex h-full min-h-0 w-full overflow-hidden bg-gradient-to-b from-[#0f1628] to-[#0a0f1e]">
+      <div className="mx-auto flex h-full min-h-0 w-full max-w-6xl min-w-0 flex-col overflow-hidden">
+        <div className="border-b border-white/10 px-4 py-3 sm:px-6">
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-wrap items-center gap-2">
+              {([
+                { id: "hr", label: t("hrMode") || "HR" },
+                { id: "technical", label: t("technicalMode") || "Technical" },
+                { id: "behavioral", label: t("behavioralMode") || "Behavioral" },
+              ] as Array<{ id: CoachMode; label: string }>).map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setMode(item.id)}
+                  className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-all ${
+                    mode === item.id
+                      ? "bg-gradient-to-r from-blue-500 to-cyan-500 text-white"
+                      : "border border-white/15 bg-white/5 text-slate-300 hover:border-cyan-300/35 hover:bg-cyan-500/10"
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
               <button
-                key={item.id}
                 type="button"
-                onClick={() => setMode(item.id)}
-                className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
-                  mode === item.id
-                    ? "bg-gradient-to-r from-blue-500 to-cyan-500 text-white"
-                    : "border border-white/15 bg-white/5 text-slate-300"
-                }`}
+                onClick={() => void createNewSession()}
+                className="rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-semibold text-slate-200 transition-all hover:border-cyan-300/35 hover:bg-cyan-500/10"
               >
-                {item.label}
+                {t("newSession") || "New Chat"}
               </button>
-            ))}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {evaluation ? (
+                <div className="hidden items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1 text-[11px] text-slate-300 sm:inline-flex">
+                  <span>Clarity {Math.round(evaluation.answer_clarity_score)}%</span>
+                  <span className="text-slate-600">|</span>
+                  <span>Confidence {Math.round(evaluation.confidence_score)}%</span>
+                  <span className="text-slate-600">|</span>
+                  <span>Relevance {Math.round(evaluation.relevance_score)}%</span>
+                </div>
+              ) : null}
+
+              <select
+                value={activeSessionId ?? ""}
+                onChange={(event) => {
+                  const sessionId = event.target.value;
+                  if (sessionId) {
+                    void loadSession(sessionId);
+                  }
+                }}
+                className="max-w-[16rem] rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-slate-200 outline-none focus:border-cyan-300/45"
+                aria-label={t("sessionHistory") || "Session history"}
+              >
+                <option value="">{t("sessionHistory") || "Session History"}</option>
+                {sessions.map((session) => (
+                  <option key={session.id} value={session.id}>
+                    {session.title ?? "Untitled"}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
-          <button
-            type="button"
-            onClick={() => void createNewSession()}
-            className="w-full rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-semibold text-slate-200"
-          >
-            {t("newSession") || "New Chat"}
-          </button>
         </div>
 
-        {/* Chat Messages */}
-        <ChatWindow
-          messages={messages}
-          streamingText={streamingText}
-          isThinking={isThinking}
-          messagesEndRef={messagesEndRef}
-          mode={mode}
-          onQuickPrompt={(prompt) => {
-            if (!isThinking) {
-              void onSendMessage(prompt);
-            }
-          }}
-        />
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <ChatWindow
+            messages={messages}
+            streamingText={streamingText}
+            isThinking={isThinking}
+            messagesEndRef={messagesEndRef}
+            mode={mode}
+            onQuickPrompt={(prompt) => {
+              if (!isThinking) {
+                void onSendMessage(prompt);
+              }
+            }}
+          />
 
-        {/* Error Display */}
-        {error && (
-          <div className="border-t border-white/5 bg-red-500/10 px-4 py-2">
-            <p className="text-xs text-red-400">{error}</p>
-          </div>
-        )}
+          {error ? (
+            <div className="border-t border-white/5 bg-red-500/10 px-4 py-2">
+              <p className="text-xs text-red-400">{error}</p>
+            </div>
+          ) : null}
 
-        {/* Input Bar */}
-        <ChatInputBar onSendMessage={onSendMessage} isLoading={isThinking} />
+          <ChatInputBar onSendMessage={onSendMessage} isLoading={isThinking} />
+        </div>
       </div>
-
-      {/* Right Panel - Evaluation */}
-      <EvaluationPanel evaluation={evaluation} />
     </div>
   );
 }

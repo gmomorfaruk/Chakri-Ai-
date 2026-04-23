@@ -13,6 +13,60 @@ interface ChatWindowProps {
   onQuickPrompt?: (prompt: string) => void;
 }
 
+type AssistantBlock =
+  | { type: "heading"; text: string }
+  | { type: "paragraph"; text: string }
+  | { type: "bullet"; text: string }
+  | { type: "numbered"; text: string; order: string };
+
+function formatInlineRichText(text: string) {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g).filter(Boolean);
+
+  return parts.map((part, idx) => {
+    if (/^\*\*[^*]+\*\*$/.test(part)) {
+      return (
+        <strong key={`${part}-${idx}`} className="font-semibold text-cyan-100">
+          {part.slice(2, -2)}
+        </strong>
+      );
+    }
+
+    return <span key={`${part}-${idx}`}>{part}</span>;
+  });
+}
+
+function parseAssistantBlocks(content: string): AssistantBlock[] {
+  const lines = content
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  return lines.map((line) => {
+    if (/^#{1,3}\s+/.test(line)) {
+      return { type: "heading", text: line.replace(/^#{1,3}\s+/, "").trim() };
+    }
+
+    if (/^feedback:|^improve:|^next:/i.test(line)) {
+      return { type: "heading", text: line };
+    }
+
+    const numberedMatch = line.match(/^(\d+)[\.)]\s+(.*)$/);
+    if (numberedMatch) {
+      return {
+        type: "numbered",
+        order: numberedMatch[1],
+        text: numberedMatch[2].trim(),
+      };
+    }
+
+    if (/^[-*•]\s+/.test(line)) {
+      return { type: "bullet", text: line.replace(/^[-*•]\s+/, "").trim() };
+    }
+
+    return { type: "paragraph", text: line };
+  });
+}
+
 export function ChatWindow({
   messages,
   streamingText,
@@ -73,23 +127,29 @@ export function ChatWindow({
   };
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-3xl space-y-4">
+    <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-10">
+      <div className="mx-auto w-full max-w-4xl space-y-5">
         {messages.length === 0 && !streamingText && !isThinking && (
           <div className="flex h-full flex-col items-center justify-center space-y-4 py-12 text-center">
-            <div className="text-4xl opacity-50">{mode === "technical" ? "🧠" : mode === "behavioral" ? "💬" : "👔"}</div>
-            <h2 className="text-2xl font-semibold text-white">{getModeLabel(mode)}</h2>
-            <p className="max-w-md text-muted-foreground">
-              {mode === "technical" ? t("technicalModeDescription") || "Ask technical interview questions and get expert coaching." : mode === "behavioral" ? t("behavioralModeDescription") || "Practice answering behavioral questions with targeted feedback." : t("hrModeDescription") || "Get HR interview preparation guidance from an expert coach."}
+            <div className="inline-flex items-center rounded-full border border-cyan-300/30 bg-cyan-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-cyan-200">
+              {getModeLabel(mode)}
+            </div>
+            <h2 className="text-2xl font-semibold text-slate-100 sm:text-3xl">How can I help you today?</h2>
+            <p className="max-w-2xl text-sm text-muted-foreground">
+              {mode === "technical"
+                ? t("technicalModeDescription") || "Ask technical interview questions and get focused, practical coaching."
+                : mode === "behavioral"
+                  ? t("behavioralModeDescription") || "Practice behavioral answers and improve your structure with actionable feedback."
+                  : t("hrModeDescription") || "Get HR interview prep guidance with clear next steps for better responses."}
             </p>
-            <p className="text-xs text-muted-foreground/60">{t("startTypingToBegin") || "Start typing to begin your coaching session"}</p>
-            <div className="grid w-full max-w-xl gap-2 sm:grid-cols-3">
+            <p className="text-xs text-muted-foreground/60">{t("startTypingToBegin") || "Start typing below to begin your coaching session"}</p>
+            <div className="grid w-full max-w-3xl gap-2 sm:grid-cols-3">
               {quickPrompts.map((prompt) => (
                 <button
                   key={prompt}
                   type="button"
                   onClick={() => onQuickPrompt?.(prompt)}
-                  className="ui-transition-soft rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-left text-xs text-slate-200 hover:border-cyan-300/40 hover:bg-cyan-500/10"
+                  className="ui-transition-soft rounded-xl border border-white/15 bg-white/[0.04] px-3 py-2 text-left text-xs text-slate-200 hover:border-cyan-300/40 hover:bg-cyan-500/10"
                 >
                   {prompt}
                 </button>
@@ -121,9 +181,9 @@ export function ChatWindow({
 
         {/* Thinking Indicator */}
         {isThinking && !streamingText && (
-          <div className="flex items-center space-x-2">
-            <div className="h-8 w-8 rounded-full bg-gradient-to-r from-blue-500 to-purple-500" />
-            <div className="space-y-1">
+          <div className="mx-auto flex w-full max-w-3xl items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+            <div className="h-7 w-7 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500" />
+            <div className="space-y-1 text-left">
               <div className="flex space-x-1">
                 <div className="h-2 w-2 animate-bounce rounded-full bg-blue-400" style={{ animationDelay: "0ms" }} />
                 <div className="h-2 w-2 animate-bounce rounded-full bg-blue-400" style={{ animationDelay: "150ms" }} />
@@ -148,57 +208,59 @@ interface MessageBubbleProps {
 
 function MessageBubble({ message, index, isStreaming }: MessageBubbleProps) {
   const isUser = message.role === "user";
-  const lines = message.content.split("\n").map((line) => line.trim()).filter(Boolean);
-  const showStructuredAssistant = !isUser && lines.length > 1;
+  const assistantBlocks = parseAssistantBlocks(message.content);
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, delay: isStreaming ? 0 : Math.min(index * 0.05, 0.2) }}
-      className={`flex ${isUser ? "justify-end" : "justify-start"}`}
+      className={`flex ${isUser ? "justify-end" : "justify-center"}`}
     >
-      <div className={`flex max-w-xl gap-3 ${isUser ? "flex-row-reverse" : ""}`}>
-        {/* Avatar */}
-        <div
-          className={`h-8 w-8 shrink-0 rounded-full ${
-            isUser
-              ? "bg-gradient-to-r from-blue-500 to-cyan-500"
-              : "bg-gradient-to-r from-purple-500 to-pink-500"
-          } flex items-center justify-center text-white text-sm font-semibold`}
-        >
-          {isUser ? "Y" : "AI"}
+      {isUser ? (
+        <div className="w-full max-w-xl rounded-2xl rounded-br-none bg-gradient-to-r from-blue-500 to-cyan-500 px-4 py-3 text-sm leading-relaxed text-white shadow-lg shadow-blue-500/20">
+          <p className="whitespace-pre-wrap break-words">{message.content}</p>
         </div>
+      ) : (
+        <div className="w-full max-w-3xl rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-slate-100 backdrop-blur-sm">
+          <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.15em] text-cyan-200">AI Coach</div>
+          <div className="space-y-2.5 text-sm leading-7">
+            {assistantBlocks.map((block, blockIdx) => {
+              if (block.type === "heading") {
+                return (
+                  <p key={`${message.id}-heading-${blockIdx}`} className="whitespace-pre-wrap break-words font-semibold text-cyan-200">
+                    {formatInlineRichText(block.text)}
+                  </p>
+                );
+              }
 
-        {/* Message Content */}
-        <div className="flex max-w-xs flex-col sm:max-w-md">
-          <div
-            className={`rounded-2xl px-4 py-2.5 shadow-lg backdrop-blur-sm ${
-              isUser
-                ? "rounded-br-none bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-blue-500/20"
-                : "rounded-bl-none border border-white/10 bg-white/5 text-gray-100 shadow-purple-500/10"
-            }`}
-          >
-            {showStructuredAssistant ? (
-              <div className="space-y-1.5 text-sm leading-relaxed">
-                {lines.map((line, lineIdx) => {
-                  const isHeading = /^feedback:|^improve:|^next:/i.test(line);
-                  return (
-                    <p
-                      key={`${message.id}-${lineIdx}`}
-                      className={`whitespace-pre-wrap break-words ${isHeading ? "font-semibold text-cyan-200" : "text-slate-100"}`}
-                    >
-                      {line}
-                    </p>
-                  );
-                })}
-              </div>
-            ) : (
-              <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">{message.content}</p>
-            )}
+              if (block.type === "bullet") {
+                return (
+                  <div key={`${message.id}-bullet-${blockIdx}`} className="flex items-start gap-2 text-slate-100">
+                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-cyan-300" aria-hidden="true" />
+                    <p className="whitespace-pre-wrap break-words">{formatInlineRichText(block.text)}</p>
+                  </div>
+                );
+              }
+
+              if (block.type === "numbered") {
+                return (
+                  <div key={`${message.id}-numbered-${blockIdx}`} className="flex items-start gap-2 text-slate-100">
+                    <span className="mt-0.5 w-5 shrink-0 font-semibold text-cyan-200">{block.order}.</span>
+                    <p className="whitespace-pre-wrap break-words">{formatInlineRichText(block.text)}</p>
+                  </div>
+                );
+              }
+
+              return (
+                <p key={`${message.id}-paragraph-${blockIdx}`} className="whitespace-pre-wrap break-words text-slate-100">
+                  {formatInlineRichText(block.text)}
+                </p>
+              );
+            })}
           </div>
         </div>
-      </div>
+      )}
     </motion.div>
   );
 }

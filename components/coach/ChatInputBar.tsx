@@ -49,8 +49,8 @@ export function ChatInputBar({ onSendMessage, isLoading = false }: ChatInputBarP
   };
 
   return (
-    <div className="border-t border-white/5 bg-gradient-to-t from-[#0a0f1e] to-[#0f1628] px-4 py-4 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-3xl">
+    <div className="border-t border-white/10 bg-gradient-to-t from-[#0a0f1e] to-[#0d1322] px-4 py-4 sm:px-6 lg:px-10">
+      <div className="mx-auto max-w-4xl">
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -63,9 +63,9 @@ export function ChatInputBar({ onSendMessage, isLoading = false }: ChatInputBarP
               }
             }
           }}
-          className="flex flex-wrap items-end gap-2 sm:flex-nowrap sm:gap-3"
+          className="flex items-end gap-2 rounded-3xl border border-white/15 bg-white/[0.04] p-2 backdrop-blur-sm sm:gap-3"
         >
-          <div className="min-w-0 flex-1 basis-full rounded-2xl border border-white/15 bg-white/[0.06] backdrop-blur-sm transition-all focus-within:border-cyan-400/55 focus-within:bg-white/10 focus-within:shadow-lg focus-within:shadow-cyan-500/10 sm:basis-auto">
+          <div className="min-w-0 flex-1 rounded-2xl bg-transparent transition-all focus-within:shadow-lg focus-within:shadow-cyan-500/10">
             <textarea
               ref={textareaRef}
               value={input}
@@ -74,16 +74,16 @@ export function ChatInputBar({ onSendMessage, isLoading = false }: ChatInputBarP
               placeholder={t("coachInputPlaceholder") || "Type your interview answer or ask for your next practice question..."}
               rows={rows}
               disabled={isLoading}
-              className="w-full resize-none bg-transparent px-4 py-3 text-sm text-white placeholder-gray-400 outline-none disabled:opacity-50"
+              className="w-full resize-none bg-transparent px-3 py-2.5 text-sm text-white placeholder-gray-400 outline-none disabled:opacity-50"
             />
           </div>
 
-          <div className="ml-auto flex flex-shrink-0 items-end gap-2 sm:ml-0">
+          <div className="flex flex-shrink-0 items-end gap-2">
             {/* Mic Button (placeholder) */}
             <button
               type="button"
               disabled={isLoading}
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-gray-400 transition-all hover:bg-white/10 hover:text-white disabled:opacity-50"
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-gray-400 transition-all hover:border-cyan-300/35 hover:bg-cyan-500/10 hover:text-white disabled:opacity-50"
               title={t("voiceInput") || "Voice input (coming soon)"}
             >
               <Mic className="h-5 w-5" />
@@ -102,7 +102,7 @@ export function ChatInputBar({ onSendMessage, isLoading = false }: ChatInputBarP
           </div>
         </form>
 
-        <p className="mt-2 text-xs text-muted-foreground/60">
+        <p className="mt-2 text-center text-xs text-muted-foreground/60">
           {t("enterToSend") || "Press Enter to send, Shift+Enter for new line"}
         </p>
       </div>

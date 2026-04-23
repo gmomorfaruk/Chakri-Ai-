@@ -1,68 +1,58 @@
 "use client";
 
-import { useState } from "react";
 import { useI18n } from "@/components/providers/I18nProvider";
 import { PremiumChatInterface } from "@/components/coach/PremiumChatInterface";
 import { QuizPractice } from "@/components/coach/QuizPractice";
 import { ConversationalLearningAI } from "@/components/learning/ConversationalLearningAI";
+import { Sparkles, Target } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 
 function getInitialView(view: string | null): "chat" | "quiz" | "learning" {
-  if (view === "quiz" || view === "learning") {
+  if (view === "chat" || view === "quiz" || view === "learning") {
     return view;
   }
 
-  return "chat";
+  return "learning";
 }
 
 export function AICoachModule() {
   const { t } = useI18n();
   const searchParams = useSearchParams();
+  const view = getInitialView(searchParams.get("view"));
 
-  const [view, setView] = useState<"chat" | "quiz" | "learning">(() => getInitialView(searchParams.get("view")));
+  const nextStepText =
+    view === "chat"
+      ? t("coachNextStepInterview")
+      : view === "learning"
+        ? t("coachNextStepLearning")
+        : t("coachNextStepQuiz");
+
+  const motivationText =
+    view === "chat"
+      ? "Every strong answer improves your confidence. Keep practicing with intent."
+      : view === "learning"
+        ? "Small daily learning steps compound into major career growth."
+        : "Practice smarter today so your real interview feels easier tomorrow.";
+
+  const focusLabel =
+    view === "chat" ? "Interview Focus" : view === "learning" ? "Learning Focus" : "Quiz Focus";
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-[#0a0f1e]">
-      {/* View Toggle - Fixed at top */}
-      <div className="sticky top-0 z-20 flex gap-2 overflow-x-auto border-b border-slate-700/50 bg-gradient-to-b from-[#0a0f1e]/95 to-[#0a0f1e]/80 px-3 py-3 backdrop-blur-md sm:p-4">
-        <button
-          onClick={() => setView("chat")}
-          className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all whitespace-nowrap ${
-            view === "chat"
-              ? "bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-lg shadow-blue-500/30"
-              : "bg-white/10 text-gray-400 hover:bg-white/20"
-          }`}
-        >
-          💬 {t("interviewCoach") || t("startInterview")}
-        </button>
-        <button
-          onClick={() => setView("learning")}
-          className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all whitespace-nowrap ${
-            view === "learning"
-              ? "bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-lg shadow-blue-500/30"
-              : "bg-white/10 text-gray-400 hover:bg-white/20"
-          }`}
-        >
-          🎓 {t("learningCoach") || t("openLearning")}
-        </button>
-        <button
-          onClick={() => setView("quiz")}
-          className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all whitespace-nowrap ${
-            view === "quiz"
-              ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg shadow-purple-500/30"
-              : "bg-white/10 text-gray-400 hover:bg-white/20"
-          }`}
-        >
-          📝 {t("quizPractice") || t("startQuiz")}
-        </button>
-      </div>
+      <div className="border-b border-slate-800/60 px-4 py-3 sm:px-6">
+        <div className="mx-auto w-full max-w-6xl rounded-2xl border border-cyan-300/20 bg-[linear-gradient(135deg,rgba(14,32,59,0.85),rgba(15,26,48,0.65))] p-3 shadow-[0_10px_30px_rgba(8,28,60,0.35)] sm:p-4">
+          <div className="flex items-start gap-3">
+            <div className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-cyan-300/30 bg-cyan-500/10 text-cyan-200">
+              {view === "learning" ? <Target size={16} /> : <Sparkles size={16} />}
+            </div>
 
-      <div className="border-b border-slate-800/60 px-4 py-2 text-xs uppercase tracking-[0.16em] text-slate-500">
-        {view === "chat"
-          ? t("coachNextStepInterview")
-          : view === "learning"
-            ? t("coachNextStepLearning")
-            : t("coachNextStepQuiz")}
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-cyan-200/80">{focusLabel}</p>
+              <p className="mt-1 text-sm font-semibold leading-relaxed text-slate-100 sm:text-base">{nextStepText}</p>
+              <p className="mt-1 text-xs leading-relaxed text-slate-400">{motivationText}</p>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Content Area */}

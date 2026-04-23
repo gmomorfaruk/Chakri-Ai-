@@ -5,6 +5,8 @@ type QuizRequestBody = {
   topic?: string;
   sourceText?: string;
   questionCount?: number;
+  difficulty?: "easy" | "medium" | "hard" | "adaptive";
+  excludeQuestionHashes?: string[];
   adaptiveContext?: {
     weakTopics?: Array<{ topic?: string; accuracy?: number; attempts?: number }>;
     strongTopics?: Array<{ topic?: string; accuracy?: number; attempts?: number }>;
@@ -44,6 +46,7 @@ type QuizQuestion = {
   options: string[];
   correctIndex: number;
   explanation: string;
+  hash: string;
 };
 
 type QuizPayload = {
@@ -106,6 +109,16 @@ function getQuestionSignature(question: string) {
     .trim();
 }
 
+function hashQuestionSignature(signature: string) {
+  let hash = 2166136261;
+  for (let i = 0; i < signature.length; i += 1) {
+    hash ^= signature.charCodeAt(i);
+    hash += (hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24);
+  }
+
+  return (hash >>> 0).toString(16).padStart(8, "0");
+}
+
 function normalizeOptions(optionsRaw: unknown) {
   // Preferred strict format: { A: "...", B: "...", C: "...", D: "..." }
   if (optionsRaw && typeof optionsRaw === "object" && !Array.isArray(optionsRaw)) {
@@ -158,7 +171,12 @@ function normalizeCorrectIndex(question: ModelQuestion, optionsLength: number) {
   return -1;
 }
 
-function normalizeQuizPayload(raw: unknown, fallbackTopic: string, questionCount: number): QuizPayload | null {
+function normalizeQuizPayload(
+  raw: unknown,
+  fallbackTopic: string,
+  questionCount: number,
+  excludedHashes: Set<string>
+): QuizPayload | null {
   if (!raw || typeof raw !== "object") return null;
 
   const data = raw as ModelQuizPayload;
@@ -177,7 +195,8 @@ function normalizeQuizPayload(raw: unknown, fallbackTopic: string, questionCount
 
       const question = typeof q.question === "string" ? q.question.trim() : "";
       const signature = getQuestionSignature(question);
-      if (!question || !signature || seen.has(signature)) {
+      const hash = hashQuestionSignature(signature);
+      if (!question || !signature || seen.has(signature) || excludedHashes.has(hash)) {
         return null;
       }
 
@@ -195,7 +214,7 @@ function normalizeQuizPayload(raw: unknown, fallbackTopic: string, questionCount
       seen.add(signature);
 
       return {
-        id: `q-${idx + 1}`,
+        id: typeof crypto !== "undefined" && typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `q-${idx + 1}`,
         question,
         options,
         correctIndex,
@@ -203,6 +222,7 @@ function normalizeQuizPayload(raw: unknown, fallbackTopic: string, questionCount
           typeof q.explanation === "string" && q.explanation.trim()
             ? q.explanation.trim()
             : "Review the concept and compare each option carefully.",
+        hash,
       };
     })
     .filter((item): item is QuizQuestion => Boolean(item))
@@ -256,6 +276,10 @@ function fallbackQuiz(topic: string, sourceText: string, questionCount: number):
   for (let i = 0; i < questionCount; i += 1) {
     const sentence = sourceSentences[i % Math.max(sourceSentences.length, 1)] || "This topic requires concept review and applied understanding.";
     const keyword = keywords[i % Math.max(keywords.length, 1)] || fallbackTopic;
+    const questionText =
+      sourceSentences.length > 0
+        ? `Based on the provided content, which statement is most accurate for ${keyword} in scenario ${i + 1}?`
+        : `Which statement best reflects effective understanding of ${keyword} for practice set ${i + 1}?`;
 
     const options = [
       `The key point is: ${sentence.slice(0, 90)}${sentence.length > 90 ? "..." : ""}`,
@@ -266,16 +290,14 @@ function fallbackQuiz(topic: string, sourceText: string, questionCount: number):
 
     questions.push({
       id: `q-${i + 1}`,
-      question:
-        sourceSentences.length > 0
-          ? `Based on the provided content, which statement is most accurate for ${keyword}?`
-          : `Which statement best reflects effective understanding of ${keyword}?`,
+      question: questionText,
       options,
       correctIndex: 0,
       explanation:
         sourceSentences.length > 0
           ? "The correct option reflects the source text context and practical meaning."
           : "Focus on practical understanding rather than memorization-only approaches.",
+      hash: hashQuestionSignature(getQuestionSignature(questionText)),
     });
   }
 
@@ -290,6 +312,8 @@ function buildQuizPrompt(
   topic: string,
   sourceText: string,
   questionCount: number,
+  difficulty: "easy" | "medium" | "hard" | "adaptive",
+  excludeQuestionHashes: string[],
   adaptiveContext?: QuizRequestBody["adaptiveContext"]
 ) {
   const hasSource = sourceText.trim().length > 0;
@@ -298,10 +322,11 @@ function buildQuizPrompt(
     : "Mode: Topic-based generation. Use conceptual and exam-relevant general knowledge.";
 
   const targetDifficulty = adaptiveContext?.targetDifficulty;
+  const effectiveDifficulty = difficulty === "adaptive" ? targetDifficulty || "medium" : difficulty;
   const difficultyPlan =
-    targetDifficulty === "hard"
+    effectiveDifficulty === "hard"
       ? `Difficulty mix target: Easy ${Math.max(1, Math.round(questionCount * 0.15))}, Medium ${Math.max(2, Math.round(questionCount * 0.35))}, Hard ${Math.max(1, questionCount - Math.round(questionCount * 0.15) - Math.round(questionCount * 0.35))}.`
-      : targetDifficulty === "easy"
+      : effectiveDifficulty === "easy"
         ? `Difficulty mix target: Easy ${Math.max(1, Math.round(questionCount * 0.5))}, Medium ${Math.max(2, Math.round(questionCount * 0.35))}, Hard ${Math.max(1, questionCount - Math.round(questionCount * 0.5) - Math.round(questionCount * 0.35))}.`
         : questionCount >= 6
           ? `Difficulty mix target: Easy ${Math.max(1, Math.round(questionCount * 0.3))}, Medium ${Math.max(2, Math.round(questionCount * 0.5))}, Hard ${Math.max(1, questionCount - Math.round(questionCount * 0.3) - Math.round(questionCount * 0.5))}.`
@@ -350,26 +375,57 @@ function buildQuizPrompt(
     ? `Provided content:\n"""\n${sourceText.trim().slice(0, 10000)}\n"""`
     : "No content provided.";
 
+  const duplicateGuardBlock = excludeQuestionHashes.length
+    ? [
+        "Anti-duplication constraints:",
+        "- Never repeat questions matching previously used hash signatures for this topic.",
+        `- Excluded question hashes (${excludeQuestionHashes.length}): ${excludeQuestionHashes.slice(0, 50).join(", ")}`,
+        "- Ensure all generated questions are distinct from each other and from the excluded hash set.",
+      ].join("\n")
+    : "Anti-duplication constraints: generate a unique set of questions with no repeats.";
+
   return [
-    "You are an AI Quiz Generator designed to help students and job seekers prepare for exams.",
+    "SYSTEM ROLE:",
+    "You are an AI quiz-generation engine for premium MCQ practice.",
+    "",
+    "OBJECTIVE:",
+    `Generate exactly ${questionCount} high-quality multiple-choice questions for the user request. Never return fewer than ${questionCount}.`,
+    "",
+    "MODE:",
     modeLine,
-    `Generate exactly ${questionCount} multiple-choice questions. Never return fewer than ${questionCount}.`,
+    "",
+    "DIFFICULTY PLAN:",
     difficultyPlan,
-    "MCQ Rules:",
+    "",
+    "QUESTION RULES:",
     "- Each question must have exactly 4 options labeled A, B, C, D.",
-    "- Only one correct answer.",
-    "- Avoid ambiguous wording.",
-    "- Keep language simple and exam-focused.",
-    "- Keep explanation to 1-2 lines.",
+    "- Exactly one correct answer.",
+    "- Avoid ambiguity and trick phrasing.",
+    "- Keep language clear, concise, and exam-oriented.",
+    "- Explanation must be 1-2 lines only.",
+    "",
+    "ADAPTIVE PERSONALIZATION:",
     adaptiveLines,
-    "STRICT OUTPUT: Return only valid JSON in this exact schema:",
+    "",
+    "DUPLICATION SAFETY:",
+    duplicateGuardBlock,
+    "",
+    "STRICT OUTPUT:",
+    "Return only valid JSON in this exact schema:",
     '{"quiz_title":"string","topic":"string","questions":[{"question":"string","options":{"A":"string","B":"string","C":"string","D":"string"},"correct_answer":"A","explanation":"string"}]}',
+    "Do not include markdown, comments, or extra keys.",
     `Requested topic: ${topic || "Derived from provided content"}`,
     contentBlock,
   ].join("\n");
 }
 
-function ensureQuestionCount(quiz: QuizPayload, topic: string, sourceText: string, questionCount: number) {
+function ensureQuestionCount(
+  quiz: QuizPayload,
+  topic: string,
+  sourceText: string,
+  questionCount: number,
+  excludedHashes: Set<string>
+) {
   if (quiz.questions.length >= questionCount) {
     return {
       ...quiz,
@@ -383,11 +439,11 @@ function ensureQuestionCount(quiz: QuizPayload, topic: string, sourceText: strin
 
   for (const candidate of extra) {
     const signature = getQuestionSignature(candidate.question);
-    if (!signature || seen.has(signature)) continue;
+    if (!signature || seen.has(signature) || excludedHashes.has(candidate.hash)) continue;
     seen.add(signature);
     merged.push({
       ...candidate,
-      id: `q-${merged.length + 1}`,
+      id: typeof crypto !== "undefined" && typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `q-${merged.length + 1}`,
     });
     if (merged.length >= questionCount) break;
   }
@@ -404,13 +460,15 @@ export async function POST(req: Request) {
     const topic = (body.topic || "").trim();
     const sourceText = (body.sourceText || "").trim();
     const questionCount = Math.max(3, Math.min(100, Math.floor(body.questionCount ?? 8)));
+    const difficulty = body.difficulty || "adaptive";
+    const excludedHashes = new Set((body.excludeQuestionHashes || []).filter((item): item is string => typeof item === "string" && item.trim().length > 0));
     const adaptiveContext = body.adaptiveContext;
 
     if (!topic && !sourceText) {
       return NextResponse.json({ error: "Topic or source content is required." }, { status: 400 });
     }
 
-    const prompt = buildQuizPrompt(topic, sourceText, questionCount, adaptiveContext);
+    const prompt = buildQuizPrompt(topic, sourceText, questionCount, difficulty, Array.from(excludedHashes), adaptiveContext);
     let parsed: QuizPayload | null = null;
 
     try {
@@ -422,13 +480,17 @@ export async function POST(req: Request) {
 
       const jsonText = extractJsonObject(ai.reply);
       const raw = JSON.parse(jsonText) as unknown;
-      parsed = normalizeQuizPayload(raw, topic, questionCount);
+      parsed = normalizeQuizPayload(raw, topic, questionCount, excludedHashes);
     } catch {
       parsed = null;
     }
 
     const quizBase = parsed ?? fallbackQuiz(topic, sourceText, questionCount);
-    const quiz = ensureQuestionCount(quizBase, topic, sourceText, questionCount);
+    const filteredBase = {
+      ...quizBase,
+      questions: quizBase.questions.filter((question) => !excludedHashes.has(question.hash)),
+    };
+    const quiz = ensureQuestionCount(filteredBase, topic, sourceText, questionCount, excludedHashes);
     return NextResponse.json({ quiz });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to generate quiz";

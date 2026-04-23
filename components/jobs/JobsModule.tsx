@@ -857,15 +857,6 @@ export function JobsModule() {
 
   return (
     <section className="space-y-5 md:space-y-6">
-      <header className="relative overflow-hidden rounded-3xl border border-border/40 bg-gradient-to-br from-card via-card/95 to-card/80 p-5 shadow-[0_18px_50px_rgba(2,6,23,0.3)] backdrop-blur-sm sm:p-6 md:p-8">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(56,189,248,0.12),transparent_45%)]" />
-        <h1 className="relative text-2xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent sm:text-3xl">
-          {t("jobs")}
-        </h1>
-        <p className="relative mt-2 max-w-2xl text-sm text-muted-foreground">{t("jobsModuleHint")}</p>
-        <p className="relative mt-2 text-xs uppercase tracking-[0.16em] text-slate-500">{t("jobsNextStep")}</p>
-      </header>
-
       {error ? (
         <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 backdrop-blur-sm">
           <p className="text-sm font-medium text-destructive">{error}</p>
