@@ -128,7 +128,7 @@ export function ChatWindow({
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-10">
-      <div className="mx-auto w-full max-w-4xl space-y-5">
+      <div className="mx-auto w-full max-w-6xl space-y-5">
         {messages.length === 0 && !streamingText && !isThinking && (
           <div className="flex h-full flex-col items-center justify-center space-y-4 py-12 text-center">
             <div className="inline-flex items-center rounded-full border border-cyan-300/30 bg-cyan-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-cyan-200">

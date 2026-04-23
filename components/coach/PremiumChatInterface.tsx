@@ -18,6 +18,7 @@ import { ensureProfileExists } from "@/lib/profileService";
 import { CoachEvaluation, CoachMessage, CoachMode, CoachSession } from "@/types/coach";
 import { ChatWindow } from "./ChatWindow";
 import { ChatInputBar } from "./ChatInputBar";
+import { CircularProgress } from "./CircularProgress";
 
 function extractRecommendationFromCoachReply(reply: string) {
   const lines = reply
@@ -418,14 +419,27 @@ export function PremiumChatInterface() {
               </button>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-4">
               {evaluation ? (
-                <div className="hidden items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1 text-[11px] text-slate-300 sm:inline-flex">
-                  <span>Clarity {Math.round(evaluation.answer_clarity_score)}%</span>
-                  <span className="text-slate-600">|</span>
-                  <span>Confidence {Math.round(evaluation.confidence_score)}%</span>
-                  <span className="text-slate-600">|</span>
-                  <span>Relevance {Math.round(evaluation.relevance_score)}%</span>
+                <div className="flex items-center gap-6">
+                  <CircularProgress
+                    value={evaluation.answer_clarity_score}
+                    label="Clarity"
+                    color="cyan"
+                    size="sm"
+                  />
+                  <CircularProgress
+                    value={evaluation.confidence_score}
+                    label="Confidence"
+                    color="blue"
+                    size="sm"
+                  />
+                  <CircularProgress
+                    value={evaluation.relevance_score}
+                    label="Relevance"
+                    color="purple"
+                    size="sm"
+                  />
                 </div>
               ) : null}
 
