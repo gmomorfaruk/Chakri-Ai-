@@ -4,6 +4,123 @@ import { usePathname } from "next/navigation";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { DashboardNavbar } from "@/components/layout/DashboardNavbar";
 
+function DashboardFooter() {
+  return (
+    <footer className="border-t border-white/10 bg-[#040a14] px-5 py-8 sm:px-8">
+      <div className="mx-auto max-w-7xl">
+        <div className="grid gap-8 md:grid-cols-4">
+          {/* Company Info */}
+          <div className="md:col-span-1">
+            <div className="flex items-center gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-violet-500 text-lg font-bold">✦</span>
+              <div>
+                <div className="font-display text-lg font-bold text-white">Chakri <span className="text-blue-400">AI</span></div>
+                <div className="text-[12px] text-slate-400">Career Platform</div>
+              </div>
+            </div>
+            <p className="mt-4 text-sm text-slate-300">
+              Bangladesh's first AI-powered career platform. We help job seekers find their perfect match and prepare for success.
+            </p>
+          </div>
+
+          {/* Quick Links */}
+          <div className="md:col-span-1">
+            <h3 className="text-sm font-semibold text-white uppercase tracking-[0.15em] mb-4">Quick Links</h3>
+            <div className="space-y-2">
+              {[
+                { label: "Home", href: "/" },
+                { label: "Jobs", href: "/jobs" },
+                { label: "AI Coach", href: "/ai-coach" },
+                { label: "Job Matching", href: "/jobs/matching" },
+                { label: "Portfolio", href: "/profile/portfolio" },
+                { label: "About Us", href: "#" },
+              ].map((item) => (
+                <a
+                  key={item.label}
+                  href={item.href}
+                  className="block text-sm text-slate-300 hover:text-white transition"
+                >
+                  {item.label}
+                </a>
+              ))}
+            </div>
+          </div>
+
+          {/* Company Info */}
+          <div className="md:col-span-1">
+            <h3 className="text-sm font-semibold text-white uppercase tracking-[0.15em] mb-4">Company</h3>
+            <div className="space-y-2">
+              {[
+                { label: "About Us", href: "#" },
+                { label: "Our Team", href: "#" },
+                { label: "Careers", href: "#" },
+                { label: "Privacy Policy", href: "#" },
+                { label: "Terms of Service", href: "#" },
+                { label: "Contact Us", href: "#" },
+              ].map((item) => (
+                <a
+                  key={item.label}
+                  href={item.href}
+                  className="block text-sm text-slate-300 hover:text-white transition"
+                >
+                  {item.label}
+                </a>
+              ))}
+            </div>
+          </div>
+
+          {/* Contact & Social */}
+          <div className="md:col-span-1">
+            <h3 className="text-sm font-semibold text-white uppercase tracking-[0.15em] mb-4">Connect With Us</h3>
+            <div className="space-y-4">
+              <div className="text-sm text-slate-300">
+                <div className="font-medium text-white mb-2">Location</div>
+                <div>Dhaka, Bangladesh</div>
+              </div>
+              
+              <div className="flex gap-3">
+                {[
+                  { name: "Facebook", icon: "📘", href: "#" },
+                  { name: "WhatsApp", icon: "💬", href: "#" },
+                  { name: "LinkedIn", icon: "💼", href: "#" },
+                  { name: "Twitter", icon: "🐦", href: "#" },
+                  { name: "Instagram", icon: "📸", href: "#" },
+                ].map((social) => (
+                  <a
+                    key={social.name}
+                    href={social.href}
+                    className="flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-white/5 text-lg transition hover:border-blue-400/40 hover:bg-blue-500/10 hover:text-blue-300"
+                    title={social.name}
+                  >
+                    {social.icon}
+                  </a>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Bottom Bar */}
+        <div className="mt-8 pt-6 border-t border-white/10">
+          <div className="flex flex-col items-center justify-between gap-4 md:flex-row">
+            <div className="text-sm text-slate-400">
+              © {new Date().getFullYear()} Chakri AI. All Rights Reserved.
+            </div>
+            <div className="text-sm text-slate-400">
+              Website developed by <span className="text-white font-semibold">Md. Omor Faruk</span>
+            </div>
+            <div className="flex items-center gap-4 text-xs text-slate-500">
+              <span>Made with ❤️ in Bangladesh</span>
+              <span className="h-1 w-1 rounded-full bg-slate-500" />
+              <span>Bengali & English Supported</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </footer>
+  );
+}
+
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isCoachRoute = pathname.startsWith("/dashboard/ai");
@@ -28,6 +145,8 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             <div className={contentWrapperClass}>{children}</div>
           </AuthGuard>
         </main>
+        {/* Footer only on non-AI pages */}
+        {!isCoachRoute && <DashboardFooter />}
       </div>
     </div>
   );
