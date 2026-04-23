@@ -14,8 +14,12 @@ function DashboardFooter() {
             <div className="flex items-center gap-3">
               <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-violet-500 text-lg font-bold">✦</span>
               <div>
-                <div className="font-display text-lg font-bold text-white">Chakri <span className="text-blue-400">AI</span></div>
-                <div className="text-[12px] text-slate-400">Career Platform</div>
+                <div className="font-display text-lg font-bold text-white">
+                  Chakri <span className="text-blue-400">AI</span>
+                </div>
+                <div className="text-[12px] text-slate-400">
+                  Career Platform
+                </div>
               </div>
             </div>
             <p className="mt-4 text-sm text-slate-300">
@@ -25,14 +29,16 @@ function DashboardFooter() {
 
           {/* Quick Links */}
           <div className="md:col-span-1">
-            <h3 className="text-sm font-semibold text-white uppercase tracking-[0.15em] mb-4">Quick Links</h3>
+            <h3 className="text-sm font-semibold text-white uppercase tracking-[0.15em] mb-4">
+              Quick Links
+            </h3>
             <div className="space-y-2">
               {[
-                { label: "Home", href: "/" },
-                { label: "Jobs", href: "/jobs" },
+                { label: "Home", href: "/dashboard" },
+                { label: "Jobs", href: "/dashboard/jobs" },
                 { label: "AI Coach", href: "/ai-coach" },
                 { label: "Job Matching", href: "/jobs/matching" },
-                { label: "Portfolio", href: "/profile/portfolio" },
+                { label: "Portfolio", href: "/dashboard/profile/" },
                 { label: "About Us", href: "#" },
               ].map((item) => (
                 <a
@@ -48,7 +54,9 @@ function DashboardFooter() {
 
           {/* Company Info */}
           <div className="md:col-span-1">
-            <h3 className="text-sm font-semibold text-white uppercase tracking-[0.15em] mb-4">Company</h3>
+            <h3 className="text-sm font-semibold text-white uppercase tracking-[0.15em] mb-4">
+              Company
+            </h3>
             <div className="space-y-2">
               {[
                 { label: "About Us", href: "#" },
@@ -71,13 +79,15 @@ function DashboardFooter() {
 
           {/* Contact & Social */}
           <div className="md:col-span-1">
-            <h3 className="text-sm font-semibold text-white uppercase tracking-[0.15em] mb-4">Connect With Us</h3>
+            <h3 className="text-sm font-semibold text-white uppercase tracking-[0.15em] mb-4">
+              Connect With Us
+            </h3>
             <div className="space-y-4">
               <div className="text-sm text-slate-300">
                 <div className="font-medium text-white mb-2">Location</div>
                 <div>Dhaka, Bangladesh</div>
               </div>
-              
+
               <div className="flex gap-3">
                 {[
                   { name: "Facebook", icon: "📘", href: "#" },
@@ -107,7 +117,15 @@ function DashboardFooter() {
               © {new Date().getFullYear()} Chakri AI. All Rights Reserved.
             </div>
             <div className="text-sm text-slate-400">
-              Website developed by <a href="https://github.com/gmomorfaruk" target="_blank" rel="noopener noreferrer" className="text-white font-semibold hover:text-blue-300 transition">Md. Omor Faruk</a>
+              Website developed by{" "}
+              <a
+                href="https://github.com/gmomorfaruk"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-white font-semibold hover:text-blue-300 transition"
+              >
+                Md. Omor Faruk
+              </a>
             </div>
             <div className="flex items-center gap-4 text-xs text-slate-500">
               <span>Made with ❤️ in Bangladesh</span>
@@ -125,11 +143,14 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isCoachRoute = pathname.startsWith("/dashboard/ai");
 
+  // ❌ removed overflow-y-auto
   const mainClass = isCoachRoute
-    ? "relative flex-1 min-w-0 overflow-hidden bg-background/75"
-    : "relative flex-1 min-w-0 overflow-x-hidden overflow-y-auto overscroll-contain bg-background/75 px-3 py-2 sm:px-4 sm:py-3 md:px-8 md:py-4";
+    ? "relative flex-1 min-w-0 bg-background/75"
+    : "relative flex-1 min-w-0 overflow-x-hidden bg-background/75 px-3 py-2 sm:px-4 sm:py-3 md:px-8 md:py-4";
 
-  const contentWrapperClass = isCoachRoute ? "min-w-0 h-full w-full max-w-none" : "mx-auto min-w-0 max-w-7xl";
+  const contentWrapperClass = isCoachRoute
+    ? "min-w-0 h-full w-full max-w-none"
+    : "mx-auto min-w-0 max-w-7xl";
 
   const rootStyle = {
     "--dashboard-top-offset-mobile": "7.25rem",
@@ -137,15 +158,19 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   } as React.CSSProperties;
 
   return (
-    <div className="flex min-h-screen h-[100dvh] w-full overflow-hidden bg-background text-foreground" style={rootStyle}>
+    <div
+      className="flex min-h-screen w-full bg-background text-foreground"
+      style={rootStyle}
+    >
       <div className="flex min-w-0 flex-1 flex-col">
         <DashboardNavbar />
+
         <main className={mainClass}>
           <AuthGuard>
             <div className={contentWrapperClass}>{children}</div>
           </AuthGuard>
         </main>
-        {/* Footer only on non-AI pages */}
+
         {!isCoachRoute && <DashboardFooter />}
       </div>
     </div>
