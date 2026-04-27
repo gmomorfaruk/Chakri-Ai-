@@ -127,7 +127,7 @@ export function JobMatchingPanel({
   }
 
   return (
-    <div className="space-y-5 md:space-y-6">
+    <div className="space-y-5 overflow-x-hidden md:space-y-6">
       <section className="relative overflow-hidden rounded-3xl border border-border/60 bg-card/95 p-4 shadow-sm sm:p-5 md:p-6">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(56,189,248,0.13),transparent_48%)]" />
 
@@ -142,9 +142,9 @@ export function JobMatchingPanel({
           </div>
         </div>
 
-        <div className="relative mt-4 grid gap-2 md:mt-5 md:grid-cols-3">
+        <div className="relative mt-4 grid grid-cols-1 gap-2 md:mt-5 md:grid-cols-3">
           <select
-            className="rounded-xl border border-border bg-background px-3 py-2.5 text-sm"
+            className="w-full min-w-0 rounded-xl border border-border bg-background px-3 py-2.5 text-sm"
             value={selectedJobId}
             onChange={(e) => setSelectedJobId(e.target.value)}
           >
@@ -156,14 +156,14 @@ export function JobMatchingPanel({
             ))}
           </select>
           <button
-            className="rounded-xl border border-border px-3 py-2.5 text-sm font-medium transition hover:border-primary/30 hover:text-foreground md:whitespace-nowrap"
+            className="w-full min-w-0 whitespace-normal break-words rounded-xl border border-border px-3 py-2.5 text-center text-sm font-medium leading-tight transition hover:border-primary/30 hover:text-foreground md:whitespace-nowrap"
             onClick={useSelectedJobDescription}
             disabled={!selectedJob}
           >
             {t("useSelectedJob")}
           </button>
           <button
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-3 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex w-full min-w-0 flex-wrap items-center justify-center gap-2 whitespace-normal rounded-xl bg-primary px-3 py-2.5 text-center text-sm font-semibold leading-tight text-primary-foreground shadow-sm transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
             onClick={() => void runMatching()}
             disabled={!canAnalyze || isAnalyzing}
           >

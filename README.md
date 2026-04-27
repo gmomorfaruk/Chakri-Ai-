@@ -128,6 +128,10 @@ NEXT_PUBLIC_SITE_URL=http://localhost:3000
 AI_PROVIDER=mock
 OPENAI_MODEL=gpt-4o-mini
 OPENAI_API_KEY=
+
+# If using Hugging Face
+HUGGINGFACE_MODEL=QWEN_MODEL
+HUGGINGFACE_API_KEY=
 ```
 
 3. Run database SQL migrations in order (Supabase SQL editor)

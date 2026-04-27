@@ -856,14 +856,14 @@ export function JobsModule() {
   }
 
   return (
-    <section className="space-y-5 md:space-y-6">
+    <section className="space-y-5 overflow-x-hidden md:space-y-6">
       {error ? (
         <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 backdrop-blur-sm">
           <p className="text-sm font-medium text-destructive">{error}</p>
         </div>
       ) : null}
 
-      <div className="grid gap-2 rounded-2xl border border-border/50 bg-card/60 p-2 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 rounded-2xl border border-border/50 bg-card/60 p-2 lg:grid-cols-4">
         {[
           { id: "hub", label: t("jobHub") },
           { id: "tracker", label: t("jobTracker") },
@@ -1160,7 +1160,7 @@ export function JobsModule() {
                   </p>
                 </div>
 
-                <div className="grid gap-2 rounded-2xl border border-border/60 bg-background/60 p-2 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="grid grid-cols-2 gap-2 rounded-2xl border border-border/60 bg-background/60 p-2 lg:grid-cols-4">
                   {[
                     { id: "my-posts", label: t("myPostsLabel") },
                     { id: "approved", label: t("approvedJobs") },
@@ -1265,7 +1265,7 @@ export function JobsModule() {
               ) : null}
 
               {hubSegment === "saved" ? (
-                <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                   {savedDiscoveryJobs.length === 0 ? (
                     <div className="ui-empty-state">
                       <p className="text-sm">{t("hubNoSavedJobs")}</p>
@@ -1296,7 +1296,7 @@ export function JobsModule() {
 
               {hubSegment === "external" ? (
                 <>
-                  <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                  <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                     {discoveryLoading && externalJobs.length === 0 ? (
                       <div className="ui-skeleton p-5">
                         <div className="space-y-3">

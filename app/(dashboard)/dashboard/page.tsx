@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { ArrowRight, Bot, Briefcase, Eye, ListTodo, Rocket, Sparkles, User } from "lucide-react";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { loadSavedJobs } from "@/lib/savedJobsStore";
@@ -87,12 +87,28 @@ const globalJobMarkers = [
 
 export default function DashboardHome() {
   const supabase = useSupabase();
+  const prefersReducedMotion = useReducedMotion();
   const [userName, setUserName] = useState("there");
   const [profileCompletion, setProfileCompletion] = useState(40);
   const [interviewAttempts, setInterviewAttempts] = useState(0);
   const [savedJobs, setSavedJobs] = useState(0);
+  const [isCompactViewport, setIsCompactViewport] = useState(false);
   const [timelineYear, setTimelineYear] = useState(2023);
   const [timelinePeople, setTimelinePeople] = useState(48200);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const media = window.matchMedia("(max-width: 1024px)");
+    const onChange = () => setIsCompactViewport(media.matches);
+
+    onChange();
+    media.addEventListener("change", onChange);
+
+    return () => media.removeEventListener("change", onChange);
+  }, []);
+
+  const shouldAnimateComplexScenes = !prefersReducedMotion && !isCompactViewport;
 
   useEffect(() => {
     async function loadDashboardSignals() {
@@ -229,7 +245,12 @@ export default function DashboardHome() {
     };
   }, [interviewAttempts, savedJobs]);
 
+  const displayTimelineYear = shouldAnimateComplexScenes ? timelineYear : miniSignals.yearEnd;
+  const displayTimelinePeople = shouldAnimateComplexScenes ? timelinePeople : miniSignals.peopleNow;
+
   useEffect(() => {
+    if (!shouldAnimateComplexScenes) return;
+
     let frame = 0;
     const totalFrames = 120;
 
@@ -247,26 +268,26 @@ export default function DashboardHome() {
     }, 24);
 
     return () => window.clearInterval(timer);
-  }, [miniSignals.peopleNow, miniSignals.peopleStart, miniSignals.yearEnd, miniSignals.yearStart]);
+  }, [miniSignals.peopleNow, miniSignals.peopleStart, miniSignals.yearEnd, miniSignals.yearStart, shouldAnimateComplexScenes]);
 
   return (
-    <section className="min-h-full bg-[#020617] text-slate-200 selection:bg-blue-500/30">
+    <section className="min-h-full overflow-x-clip bg-[#020617] text-slate-200 selection:bg-blue-500/30">
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute -top-[10%] -left-[10%] h-[38%] w-[38%] rounded-full bg-blue-900/18 blur-[120px]" />
         <div className="absolute top-[20%] -right-[10%] h-[46%] w-[30%] rounded-full bg-purple-900/10 blur-[120px]" />
       </div>
 
-      <div className="relative mx-auto max-w-6xl px-4 py-4 sm:px-6 sm:py-6 md:py-7">
+      <div className="relative mx-auto max-w-6xl px-3 py-4 sm:px-6 sm:py-6 md:py-7">
         <motion.section
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45 }}
-          className="mb-8 rounded-3xl border border-white/10 bg-gradient-to-r from-cyan-500/12 via-blue-500/8 to-purple-500/10 p-7 shadow-[0_24px_60px_rgba(2,8,23,0.35)] backdrop-blur-xl"
+          className="mb-8 rounded-3xl border border-white/10 bg-gradient-to-r from-cyan-500/12 via-blue-500/8 to-purple-500/10 p-5 shadow-[0_24px_60px_rgba(2,8,23,0.35)] backdrop-blur-xl sm:p-7"
         >
           <div className="flex flex-col gap-5">
             <div>
               <p className="text-xs uppercase tracking-[0.2em] text-cyan-200/80">Career Dashboard</p>
-              <h1 className="mt-2 text-3xl font-bold text-white md:text-4xl">Welcome back, {userName} 👋</h1>
+              <h1 className="mt-2 text-2xl font-bold text-white sm:text-3xl md:text-4xl">Welcome back, {userName} 👋</h1>
               <p className="mt-2 text-slate-300">Let&apos;s continue building your career journey.</p>
             </div>
 
@@ -287,8 +308,8 @@ export default function DashboardHome() {
                     </span>
                   </div>
 
-                  <div className="overflow-hidden rounded-lg border border-cyan-300/15 bg-[radial-gradient(ellipse_at_center,rgba(24,58,96,0.35)_0%,rgba(5,13,26,0.98)_68%)]">
-                      <svg viewBox="0 0 760 320" role="img" aria-label="Global job coverage with active locations" className="h-56 w-full md:h-60">
+                    <div className="overflow-hidden rounded-lg border border-cyan-300/15 bg-[radial-gradient(ellipse_at_center,rgba(24,58,96,0.35)_0%,rgba(5,13,26,0.98)_68%)]">
+                      <svg viewBox="0 0 760 320" role="img" aria-label="Global job coverage with active locations" className="h-44 w-full sm:h-52 md:h-60">
                       <defs>
                         <radialGradient id="globe-fill" cx="50%" cy="45%" r="62%">
                           <stop offset="0%" stopColor="#16466f" />
@@ -325,7 +346,10 @@ export default function DashboardHome() {
                         </g>
 
                         <g clipPath="url(#globe-clip)">
-                          <motion.g animate={{ x: [0, -264] }} transition={{ duration: 20, repeat: Infinity, ease: "linear" }}>
+                          <motion.g
+                            animate={shouldAnimateComplexScenes ? { x: [0, -264] } : undefined}
+                            transition={shouldAnimateComplexScenes ? { duration: 20, repeat: Infinity, ease: "linear" } : undefined}
+                          >
                             {[0, 264].map((offset) => (
                               <g key={offset} transform={`translate(${offset} 0)`}>
                                 <path
@@ -360,17 +384,29 @@ export default function DashboardHome() {
                                       cy={marker.y}
                                       r="12"
                                       fill="rgba(255,51,51,0.22)"
-                                      initial={{ scale: 0.45, opacity: 0.18 }}
-                                      animate={{ scale: [0.6, 1.45, 0.6], opacity: [0.2, 0.7, 0.2] }}
-                                      transition={{ duration: 1.8, repeat: Infinity, delay: marker.delay }}
+                                      initial={shouldAnimateComplexScenes ? { scale: 0.45, opacity: 0.18 } : false}
+                                      animate={
+                                        shouldAnimateComplexScenes
+                                          ? { scale: [0.6, 1.45, 0.6], opacity: [0.2, 0.7, 0.2] }
+                                          : { scale: 1, opacity: 0.36 }
+                                      }
+                                      transition={
+                                        shouldAnimateComplexScenes
+                                          ? { duration: 1.8, repeat: Infinity, delay: marker.delay }
+                                          : { duration: 0 }
+                                      }
                                     />
                                     <motion.circle
                                       cx={marker.x}
                                       cy={marker.y}
                                       r="5"
                                       fill="rgba(255,80,80,0.35)"
-                                      animate={{ opacity: [0.22, 0.92, 0.22] }}
-                                      transition={{ duration: 1.3, repeat: Infinity, delay: marker.delay / 2 }}
+                                      animate={shouldAnimateComplexScenes ? { opacity: [0.22, 0.92, 0.22] } : { opacity: 0.82 }}
+                                      transition={
+                                        shouldAnimateComplexScenes
+                                          ? { duration: 1.3, repeat: Infinity, delay: marker.delay / 2 }
+                                          : { duration: 0 }
+                                      }
                                     />
                                     <circle cx={marker.x} cy={marker.y} r="2.9" fill="#ff3333" filter="url(#marker-glow)" />
                                   </g>
@@ -396,11 +432,11 @@ export default function DashboardHome() {
                   <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
                     <p className="text-[11px] uppercase tracking-[0.15em] text-slate-400">People count vs year</p>
                     <p className="text-xs text-cyan-100/90">
-                      <span className="font-semibold text-white">{timelinePeople.toLocaleString()}</span> people by {timelineYear}
+                      <span className="font-semibold text-white">{displayTimelinePeople.toLocaleString()}</span> people by {displayTimelineYear}
                     </p>
                   </div>
 
-                  <svg viewBox="0 0 236 112" role="img" aria-label="People growth from 2023 to 2026" className="h-52 w-full md:h-56">
+                  <svg viewBox="0 0 236 112" role="img" aria-label="People growth from 2023 to 2026" className="h-40 w-full sm:h-52 md:h-56">
                     <defs>
                       <linearGradient id="pulse-line" x1="0" x2="1" y1="0" y2="0">
                         <stop offset="0%" stopColor="#22d3ee" />
@@ -425,9 +461,9 @@ export default function DashboardHome() {
                     <motion.polygon
                       points={miniSignals.areaPoints}
                       fill="url(#pulse-area)"
-                      initial={{ opacity: 0 }}
+                      initial={shouldAnimateComplexScenes ? { opacity: 0 } : false}
                       animate={{ opacity: 1 }}
-                      transition={{ duration: 1.8, ease: "easeOut" }}
+                      transition={shouldAnimateComplexScenes ? { duration: 1.8, ease: "easeOut" } : { duration: 0 }}
                     />
                     <motion.polyline
                       fill="none"
@@ -436,18 +472,22 @@ export default function DashboardHome() {
                       strokeLinejoin="round"
                       strokeLinecap="round"
                       points={miniSignals.points}
-                      initial={{ pathLength: 0, opacity: 0.4 }}
+                      initial={shouldAnimateComplexScenes ? { pathLength: 0, opacity: 0.4 } : false}
                       animate={{ pathLength: 1, opacity: 1 }}
-                      transition={{ duration: 2.4, ease: "easeOut" }}
+                      transition={shouldAnimateComplexScenes ? { duration: 2.4, ease: "easeOut" } : { duration: 0 }}
                     />
                     <motion.circle
                       cx="224"
                       cy={miniSignals.peakY}
                       r="3.5"
                       fill="#f5d0fe"
-                      initial={{ scale: 0.4, opacity: 0.3 }}
-                      animate={{ scale: [0.8, 1.2, 0.9], opacity: [0.6, 1, 0.85] }}
-                      transition={{ duration: 1.4, repeat: Infinity, repeatType: "mirror" }}
+                      initial={shouldAnimateComplexScenes ? { scale: 0.4, opacity: 0.3 } : false}
+                      animate={shouldAnimateComplexScenes ? { scale: [0.8, 1.2, 0.9], opacity: [0.6, 1, 0.85] } : { scale: 0.95, opacity: 0.95 }}
+                      transition={
+                        shouldAnimateComplexScenes
+                          ? { duration: 1.4, repeat: Infinity, repeatType: "mirror" }
+                          : { duration: 0 }
+                      }
                     />
                     {miniSignals.yearTicks.map((tick) => (
                       <text
@@ -553,7 +593,7 @@ export default function DashboardHome() {
           })}
         </section>
 
-        <section className="mb-20 rounded-2xl border border-cyan-400/25 bg-gradient-to-r from-cyan-500/10 via-blue-500/8 to-purple-500/10 p-6">
+        <section className="mb-16 rounded-2xl border border-cyan-400/25 bg-gradient-to-r from-cyan-500/10 via-blue-500/8 to-purple-500/10 p-5 sm:mb-20 sm:p-6">
           <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
             <div>
               <div className="inline-flex items-center gap-2 rounded-full border border-cyan-300/30 bg-cyan-500/10 px-3 py-1 text-xs uppercase tracking-[0.18em] text-cyan-200">
@@ -627,7 +667,7 @@ export default function DashboardHome() {
             ))}
           </div>
 
-          <div className="space-y-24 md:space-y-0">
+          <div className="space-y-16 md:space-y-0">
             {journeySteps.map((step, index) => {
               const isRightAligned = index % 2 === 1;
               const Icon = step.icon;
@@ -647,13 +687,13 @@ export default function DashboardHome() {
                       initial={{ opacity: 0, x: isRightAligned ? 50 : -50 }}
                       whileInView={{ opacity: 1, x: 0 }}
                       viewport={{ once: true }}
-                      className="relative w-full rounded-[30px] border border-white/10 bg-slate-900/50 p-8 backdrop-blur-xl transition-all duration-500 hover:-translate-y-1.5 hover:border-cyan-300/35 hover:shadow-2xl md:w-[45%]"
+                      className="relative w-full rounded-[30px] border border-white/10 bg-slate-900/50 p-5 backdrop-blur-xl transition-all duration-500 hover:-translate-y-1.5 hover:border-cyan-300/35 hover:shadow-2xl sm:p-8 md:w-[46%] lg:w-[45%]"
                     >
                       <div className="flex items-center gap-4">
                         <div className={`flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br ${step.color} shadow-lg`}>
                           <Icon className="text-white" size={28} />
                         </div>
-                        <h3 className="text-2xl font-bold text-white">{step.title}</h3>
+                        <h3 className="text-xl font-bold text-white sm:text-2xl">{step.title}</h3>
                       </div>
 
                       <p className="mt-4 leading-relaxed text-slate-400">{step.body}</p>

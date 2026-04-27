@@ -14,6 +14,15 @@ export type CoachReplyRequest = {
 };
 
 const AI_HTTP_TIMEOUT_MS = Number(process.env.AI_HTTP_TIMEOUT_MS || "20000");
+const DEFAULT_HUGGINGFACE_MODEL = "Qwen/Qwen2.5-7B-Instruct";
+const HUGGINGFACE_MODEL_ALIASES: Record<string, string> = {
+  QWEN_MODEL: DEFAULT_HUGGINGFACE_MODEL,
+};
+
+function resolveHuggingFaceModel() {
+  const configured = (process.env.HUGGINGFACE_MODEL || process.env.QWEN_MODEL || DEFAULT_HUGGINGFACE_MODEL).trim();
+  return HUGGINGFACE_MODEL_ALIASES[configured] || configured;
+}
 
 function nextInterviewQuestion(mode: CoachMode) {
   if (mode === "technical") {
@@ -384,7 +393,7 @@ async function huggingFaceReply(input: CoachReplyRequest) {
   const apiKey = process.env.HUGGINGFACE_API_KEY;
   if (!apiKey) return null;
 
-  const model = process.env.HUGGINGFACE_MODEL || "Qwen/Qwen2.5-7B-Instruct";
+  const model = resolveHuggingFaceModel();
 
   const response = await fetchWithTimeout("https://router.huggingface.co/v1/chat/completions", {
     method: "POST",

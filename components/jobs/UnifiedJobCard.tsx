@@ -49,15 +49,15 @@ export function UnifiedJobCard({
   const initials = (job.company || job.title).slice(0, 2).toUpperCase();
 
   return (
-    <article className="group flex h-full flex-col rounded-3xl border border-border/65 bg-gradient-to-br from-card via-card/95 to-background/90 p-5 shadow-[0_14px_42px_rgba(2,6,23,0.25)] transition-all duration-300 hover:-translate-y-1 hover:border-primary/45 hover:shadow-[0_24px_65px_rgba(139,92,246,0.16)]">
+    <article className="group flex h-full min-w-0 max-w-full flex-col rounded-3xl border border-border/65 bg-gradient-to-br from-card via-card/95 to-background/90 p-5 shadow-[0_14px_42px_rgba(2,6,23,0.25)] transition-all duration-300 hover:-translate-y-1 hover:border-primary/45 hover:shadow-[0_24px_65px_rgba(139,92,246,0.16)]">
       <div className="flex items-start gap-3">
         <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/20 text-sm font-bold text-primary">
           {initials}
         </div>
 
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="truncate text-base font-semibold text-foreground" style={{ fontFamily: "Space Grotesk, DM Sans, system-ui" }}>
+          <div className="flex flex-wrap items-start gap-2">
+            <h3 className="min-w-0 flex-[1_1_200px] break-words text-base font-semibold leading-snug text-foreground" style={{ fontFamily: "Space Grotesk, DM Sans, system-ui" }}>
               {job.title}
             </h3>
             <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] ${sourceTone(job.source_type)}`}>
@@ -68,7 +68,7 @@ export function UnifiedJobCard({
             </span>
           </div>
 
-          <p className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
+          <p className="mt-1 flex min-w-0 items-center gap-1 break-words text-sm text-muted-foreground">
             <Building2 className="h-3.5 w-3.5" />
             {job.company}
           </p>

@@ -1,7 +1,8 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 
 const categories = [
   { icon: "💻", label: "Software Engineer", color: "#3b82f6" },
@@ -81,8 +82,25 @@ const steps = [
 const trustLogos = ["Grameenphone", "BRAC", "PRAN–RFL", "Dutch–Bangla", "Robi Axiata", "Square Group", "ACI Limited"];
 
 export default function HomePage() {
+  const prefersReducedMotion = useReducedMotion();
+  const [isCompactViewport, setIsCompactViewport] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const media = window.matchMedia("(max-width: 768px)");
+    const onChange = () => setIsCompactViewport(media.matches);
+
+    onChange();
+    media.addEventListener("change", onChange);
+
+    return () => media.removeEventListener("change", onChange);
+  }, []);
+
+  const shouldAnimateTicker = !prefersReducedMotion && !isCompactViewport;
+
   return (
-    <div className="min-h-screen bg-[#040a14] text-[#f0f6ff] font-body">
+    <div className="min-h-screen overflow-x-clip bg-[#040a14] text-[#f0f6ff] font-body">
       {/* noise / grid overlay */}
       <div className="pointer-events-none fixed inset-0 opacity-60 mix-blend-screen">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_0%,rgba(59,130,246,0.12)_0%,transparent_60%),radial-gradient(ellipse_at_80%_80%,rgba(139,92,246,0.1)_0%,transparent_60%),radial-gradient(ellipse_at_10%_70%,rgba(6,182,212,0.07)_0%,transparent_60%)]" />
@@ -91,14 +109,14 @@ export default function HomePage() {
 
       {/* Navbar */}
       <header className="fixed inset-x-0 top-0 z-50 border-b border-white/10 bg-[#040a14]/85 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4 sm:px-8">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-8 sm:py-4">
           <Link href="#" className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-violet-500 text-lg font-bold">✦</div>
             <div className="leading-tight">
               <div className="font-display text-lg font-extrabold tracking-tight">
                 Chakri <span className="text-blue-400">AI</span>
               </div>
-              <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400">Career Platform</div>
+              <div className="hidden text-[11px] uppercase tracking-[0.2em] text-slate-400 sm:block">Career Platform</div>
             </div>
           </Link>
           <nav className="hidden items-center gap-8 text-sm font-medium text-slate-300 md:flex">
@@ -115,26 +133,27 @@ export default function HomePage() {
               Stories
             </a>
           </nav>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2">
             <Link
               href="/sign-in"
-              className="rounded-xl border border-white/15 px-4 py-2 text-sm font-semibold text-white transition hover:border-blue-400/60 hover:text-blue-200"
+              className="rounded-xl border border-white/15 px-3 py-2 text-xs font-semibold text-white transition hover:border-blue-400/60 hover:text-blue-200 sm:px-4 sm:text-sm"
             >
               Sign In
             </Link>
             <Link
               href="/sign-up"
-              className="rounded-xl bg-gradient-to-br from-blue-500 to-violet-500 px-4 py-2 text-sm font-semibold text-white shadow-[0_12px_40px_rgba(59,130,246,0.35)] transition hover:scale-[1.02]"
+              className="rounded-xl bg-gradient-to-br from-blue-500 to-violet-500 px-3 py-2 text-xs font-semibold text-white shadow-[0_12px_40px_rgba(59,130,246,0.35)] transition hover:scale-[1.02] sm:px-4 sm:text-sm"
             >
-              Get Started Free
+              <span className="sm:hidden">Start Free</span>
+              <span className="hidden sm:inline">Get Started Free</span>
             </Link>
           </div>
         </div>
       </header>
 
-      <main className="relative z-10 pt-24">
+      <main className="relative z-10 overflow-x-clip pt-20 sm:pt-24">
         {/* Hero */}
-        <section id="hero" className="relative flex min-h-screen items-center justify-center overflow-hidden px-5 pb-16 pt-20 sm:px-8">
+        <section id="hero" className="relative flex min-h-[calc(100dvh-5rem)] items-center justify-center overflow-hidden px-4 pb-14 pt-16 sm:px-8 sm:pb-16 sm:pt-20">
           <div className="absolute inset-0">
             <div className="absolute -left-32 top-10 h-96 w-96 rounded-full bg-blue-500/20 blur-[140px]" />
             <div className="absolute right-[-120px] top-32 h-80 w-80 rounded-full bg-fuchsia-500/15 blur-[120px]" />
@@ -142,15 +161,15 @@ export default function HomePage() {
           </div>
 
           <div className="relative mx-auto max-w-5xl text-center">
-            <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-blue-400/40 bg-blue-400/10 px-4 py-2 text-xs font-medium uppercase tracking-[0.18em] text-cyan-200">
+            <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-blue-400/40 bg-blue-400/10 px-3 py-2 text-[11px] font-medium uppercase tracking-[0.12em] text-cyan-200 sm:px-4 sm:text-xs sm:tracking-[0.18em]">
               <span className="h-2 w-2 rounded-full bg-cyan-300 animate-pulse" />
               Bangladesh&apos;s First AI Career Engine
             </div>
-            <h1 className="hero-heading text-4xl font-extrabold leading-[1.05] sm:text-5xl lg:text-6xl">
+            <h1 className="hero-heading text-3xl font-extrabold leading-[1.08] sm:text-5xl lg:text-6xl">
               Your Next Job Is <br />
               <span className="bg-gradient-to-r from-blue-400 via-violet-400 to-pink-400 bg-clip-text text-transparent">One AI Away</span>
             </h1>
-            <p className="mx-auto mt-6 max-w-3xl text-lg text-slate-300">
+            <p className="mx-auto mt-6 max-w-3xl text-base text-slate-300 sm:text-lg">
               Chakri AI turns <span className="text-white font-semibold">unemployed into employed</span>. Get AI-matched to real jobs, prepare with an AI coach, and practice live voice interviews — all in one platform built for Bangladesh.
             </p>
             <div className="mt-8 flex flex-wrap justify-center gap-3">
@@ -168,7 +187,7 @@ export default function HomePage() {
               </Link>
             </div>
 
-            <div className="mt-12 flex flex-wrap items-center justify-center gap-8 text-center text-sm text-slate-300">
+            <div className="mt-10 flex flex-wrap items-center justify-center gap-x-6 gap-y-5 text-center text-sm text-slate-300 sm:mt-12 sm:gap-8">
               {[
                 { value: "12,000+", label: "Jobs Matched" },
                 { value: "4,800+", label: "People Hired" },
@@ -187,7 +206,7 @@ export default function HomePage() {
         {/* Trust logos */}
         <section
           id="trust"
-          className="relative px-5 py-8 sm:px-8"
+          className="relative px-4 py-8 sm:px-8"
           aria-label="Trusted by leading employers across Bangladesh"
         >
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(99,132,255,0.08),transparent_60%)]" />
@@ -224,7 +243,7 @@ export default function HomePage() {
         </section>
 
         {/* Job categories slider */}
-        <section id="categories" className="px-5 py-20 sm:px-8">
+        <section id="categories" className="px-4 py-16 sm:px-8 sm:py-20">
           <div className="mx-auto max-w-5xl text-center">
             <span className="text-[12px] font-medium uppercase tracking-[0.2em] text-blue-400">Explore Opportunities</span>
             <h2 className="section-heading text-3xl font-bold tracking-tight text-white sm:text-4xl">Find Your Perfect Sector</h2>
@@ -237,11 +256,15 @@ export default function HomePage() {
               <div key={row} className="relative">
                 <motion.div
                   className="flex gap-3"
-                  animate={{ x: ["0%", "-50%"] }}
-                  transition={{ repeat: Infinity, duration: 30, ease: "linear", repeatType: "loop" }}
+                  animate={shouldAnimateTicker ? { x: ["0%", "-50%"] } : undefined}
+                  transition={
+                    shouldAnimateTicker
+                      ? { repeat: Infinity, duration: 30, ease: "linear", repeatType: "loop" }
+                      : undefined
+                  }
                   style={{ direction: row === 1 ? "rtl" : "ltr" }}
                 >
-                  {[...categories, ...categories].map((cat, idx) => (
+                  {(shouldAnimateTicker ? [...categories, ...categories] : categories).map((cat, idx) => (
                     <div
                       key={`${cat.label}-${idx}-${row}`}
                       className="flex shrink-0 items-center gap-2 rounded-full border border-white/10 bg-[#0b1525] px-4 py-2 text-sm font-medium text-white shadow-[0_12px_30px_rgba(0,0,0,0.25)] transition hover:scale-[1.03]"
@@ -260,7 +283,7 @@ export default function HomePage() {
         </section>
 
         {/* Pain → solution */}
-        <section id="solution" className="px-5 py-20 sm:px-8">
+        <section id="solution" className="px-4 py-16 sm:px-8 sm:py-20">
           <div className="mx-auto max-w-5xl text-center">
             <span className="text-[12px] font-medium uppercase tracking-[0.2em] text-blue-400">Why Chakri AI</span>
             <h2 className="section-heading text-3xl font-bold tracking-tight text-white sm:text-4xl">We Solve the Real Problems</h2>
@@ -268,7 +291,7 @@ export default function HomePage() {
           </div>
 
           <div className="mx-auto mt-10 grid max-w-5xl gap-6 md:grid-cols-2">
-            <div className="relative rounded-2xl border border-red-400/30 bg-[#0b1525] p-8 shadow-[0_20px_60px_rgba(0,0,0,0.4)]">
+            <div className="relative rounded-2xl border border-red-400/30 bg-[#0b1525] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.4)] sm:p-8">
               <div className="mb-5 text-[12px] font-medium uppercase tracking-[0.2em] text-red-400">❌ Without Chakri AI</div>
               {[
                 "Sending hundreds of CVs with zero responses — wasting months with no feedback.",
@@ -283,7 +306,7 @@ export default function HomePage() {
                 </div>
               ))}
             </div>
-            <div className="relative rounded-2xl border border-emerald-400/30 bg-[#0b1525] p-8 shadow-[0_20px_60px_rgba(16,185,129,0.2)]">
+            <div className="relative rounded-2xl border border-emerald-400/30 bg-[#0b1525] p-5 shadow-[0_20px_60px_rgba(16,185,129,0.2)] sm:p-8">
               <div className="mb-5 text-[12px] font-medium uppercase tracking-[0.2em] text-emerald-300">✅ With Chakri AI</div>
               {[
                 "AI matches your profile to the right jobs instantly — with a compatibility score.",
@@ -302,7 +325,7 @@ export default function HomePage() {
         </section>
 
         {/* Feature spotlight */}
-        <section id="spotlight" className="px-5 py-20 sm:px-8">
+        <section id="spotlight" className="px-4 py-16 sm:px-8 sm:py-20">
           <div className="mx-auto max-w-5xl text-center">
             <span className="text-[12px] font-medium uppercase tracking-[0.2em] text-blue-400">Powered by AI</span>
             <h2 className="section-heading text-3xl font-bold tracking-tight text-white sm:text-4xl">Built to Get You Hired</h2>
@@ -313,7 +336,7 @@ export default function HomePage() {
             {/* AI Coach featured */}
             <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-[#0b1525] shadow-[0_24px_80px_rgba(0,0,0,0.45)]">
                 <div className="grid gap-0 lg:grid-cols-2">
-                <div className="relative overflow-hidden bg-gradient-to-br from-[#0d1c30] to-[#0f2040] p-8">
+                <div className="relative overflow-hidden bg-gradient-to-br from-[#0d1c30] to-[#0f2040] p-5 sm:p-8">
                   <div className="absolute right-6 top-6 rounded-lg border border-blue-400/40 bg-blue-400/15 px-3 py-2 text-[11px] font-medium text-cyan-100">
                     ⚡ Live Session
                   </div>
@@ -334,7 +357,7 @@ export default function HomePage() {
                     </div>
                   </div>
                 </div>
-                <div className="flex flex-col justify-center gap-4 p-8">
+                <div className="flex flex-col justify-center gap-4 p-5 sm:p-8">
                   <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-500/10 text-xl">🤖</div>
                   <h3 className="card-title text-2xl font-semibold text-white">AI Interview Coach</h3>
                   <p className="text-sm text-slate-300">
@@ -431,14 +454,14 @@ export default function HomePage() {
         </section>
 
         {/* How it works */}
-        <section id="how" className="px-5 py-20 sm:px-8">
+        <section id="how" className="px-4 py-16 sm:px-8 sm:py-20">
           <div className="mx-auto max-w-5xl text-center">
             <span className="text-[12px] font-medium uppercase tracking-[0.2em] text-blue-400">Simple Process</span>
             <h2 className="section-heading text-3xl font-bold tracking-tight text-white sm:text-4xl">From Zero to Hired in 4 Steps</h2>
             <p className="mt-3 text-base text-slate-300">We guide you through every stage — no confusion, no guesswork.</p>
           </div>
-          <div className="mx-auto mt-10 grid max-w-5xl grid-cols-2 gap-8 md:grid-cols-4">
-            {steps.map((step, idx) => (
+          <div className="mx-auto mt-10 grid max-w-5xl grid-cols-1 gap-8 sm:grid-cols-2 md:grid-cols-4">
+            {steps.map((step) => (
               <div key={step.title} className="group relative text-center">
                 <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full border-2 border-white/15 bg-[#0b1525] text-lg text-blue-300 transition group-hover:border-blue-400 group-hover:shadow-[0_0_30px_rgba(59,130,246,0.3)]">
                   {step.icon}
@@ -452,7 +475,7 @@ export default function HomePage() {
         </section>
 
         {/* Testimonials */}
-        <section id="testimonials" className="overflow-hidden px-5 py-20 sm:px-8">
+        <section id="testimonials" className="overflow-hidden px-4 py-16 sm:px-8 sm:py-20">
           <div className="mx-auto max-w-5xl text-center">
             <span className="text-[12px] font-medium uppercase tracking-[0.2em] text-blue-400">Real Stories</span>
             <h2 className="section-heading text-3xl font-bold tracking-tight text-white sm:text-4xl">People Who Got Hired</h2>
@@ -461,10 +484,10 @@ export default function HomePage() {
           <div className="mt-10">
             <motion.div
               className="flex gap-4"
-              animate={{ x: ["0%", "-50%"] }}
-              transition={{ repeat: Infinity, duration: 40, ease: "linear" }}
+              animate={shouldAnimateTicker ? { x: ["0%", "-50%"] } : undefined}
+              transition={shouldAnimateTicker ? { repeat: Infinity, duration: 40, ease: "linear" } : undefined}
             >
-              {[...testimonials, ...testimonials].map((t, idx) => (
+              {(shouldAnimateTicker ? [...testimonials, ...testimonials] : testimonials).map((t, idx) => (
                 <div key={`${t.name}-${idx}`} className="w-80 shrink-0 rounded-2xl border border-white/12 bg-[#0b1525] p-6 shadow-[0_18px_50px_rgba(0,0,0,0.4)]">
                   <div className="mb-3 text-xs tracking-[0.2em] text-amber-300">{t.stars}</div>
                   <p className="text-sm text-slate-300">“{t.text}”</p>
@@ -487,8 +510,8 @@ export default function HomePage() {
         </section>
 
         {/* CTA */}
-        <section id="cta" className="px-5 pb-24 sm:px-8">
-          <div className="relative mx-auto max-w-4xl overflow-hidden rounded-3xl border border-white/10 bg-[#0b1525] px-8 py-12 text-center shadow-[0_24px_80px_rgba(0,0,0,0.5)]">
+        <section id="cta" className="px-4 pb-20 sm:px-8 sm:pb-24">
+          <div className="relative mx-auto max-w-4xl overflow-hidden rounded-3xl border border-white/10 bg-[#0b1525] px-5 py-10 text-center shadow-[0_24px_80px_rgba(0,0,0,0.5)] sm:px-8 sm:py-12">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_50%_0%,rgba(59,130,246,0.1)_0%,transparent_70%)]" />
             <div className="pointer-events-none absolute inset-x-1/4 top-0 h-px bg-gradient-to-r from-transparent via-blue-400 to-transparent" />
               <div className="relative">
@@ -513,9 +536,9 @@ export default function HomePage() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-white/10 bg-[#040a14] px-5 py-12 sm:px-8">
+      <footer className="border-t border-white/10 bg-[#040a14] px-4 py-10 sm:px-8 sm:py-12">
         <div className="mx-auto max-w-7xl">
-          <div className="grid gap-8 md:grid-cols-4">
+          <div className="grid gap-8 sm:grid-cols-2 md:grid-cols-4">
             {/* Company Info */}
             <div className="md:col-span-1">
               <div className="flex items-center gap-3">
@@ -526,7 +549,7 @@ export default function HomePage() {
                 </div>
               </div>
               <p className="mt-4 text-sm text-slate-300">
-                Bangladesh's first AI-powered career platform. We help job seekers find their perfect match and prepare for success.
+                Bangladesh&apos;s first AI-powered career platform. We help job seekers find their perfect match and prepare for success.
               </p>
               <div className="mt-6 flex items-center gap-2 text-xs text-slate-400">
                 <span className="h-2 w-2 rounded-full bg-emerald-400" />
@@ -546,13 +569,23 @@ export default function HomePage() {
                   { label: "Portfolio", href: "/profile/portfolio" },
                   { label: "About Us", href: "#" },
                 ].map((item) => (
-                  <a
-                    key={item.label}
-                    href={item.href}
-                    className="block text-sm text-slate-300 hover:text-white transition"
-                  >
-                    {item.label}
-                  </a>
+                  item.href.startsWith("/") ? (
+                    <Link
+                      key={item.label}
+                      href={item.href}
+                      className="block text-sm text-slate-300 transition hover:text-white"
+                    >
+                      {item.label}
+                    </Link>
+                  ) : (
+                    <a
+                      key={item.label}
+                      href={item.href}
+                      className="block text-sm text-slate-300 transition hover:text-white"
+                    >
+                      {item.label}
+                    </a>
+                  )
                 ))}
               </div>
             </div>
@@ -589,7 +622,7 @@ export default function HomePage() {
                   <div>Dhaka, Bangladesh</div>
                 </div>
                 
-                <div className="flex gap-3">
+                <div className="flex flex-wrap gap-3">
                   {[
                     { name: "Facebook", icon: "📘", href: "#" },
                     { name: "WhatsApp", icon: "💬", href: "#" },
@@ -614,13 +647,13 @@ export default function HomePage() {
           {/* Bottom Bar */}
           <div className="mt-8 pt-6 border-t border-white/10">
             <div className="flex flex-col items-center justify-between gap-4 md:flex-row">
-              <div className="text-sm text-slate-400">
+              <div className="text-center text-sm text-slate-400 md:text-left">
                 © {new Date().getFullYear()} Chakri AI. All Rights Reserved.
               </div>
-              <div className="text-sm text-slate-400">
+              <div className="text-center text-sm text-slate-400 md:text-left">
                 Website developed by <a href="https://github.com/gmomorfaruk" target="_blank" rel="noopener noreferrer" className="text-white font-semibold hover:text-blue-300 transition">Md. Omor Faruk</a>
               </div>
-              <div className="flex items-center gap-4 text-xs text-slate-500">
+              <div className="flex flex-wrap items-center justify-center gap-3 text-xs text-slate-500 md:justify-end">
                 <span>Made with ❤️ in Bangladesh</span>
                 <span className="h-1 w-1 rounded-full bg-slate-500" />
                 <span>Bengali & English Supported</span>

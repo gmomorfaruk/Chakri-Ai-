@@ -1,14 +1,15 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { DashboardNavbar } from "@/components/layout/DashboardNavbar";
 
 function DashboardFooter() {
   return (
-    <footer className="border-t border-white/10 bg-[#040a14] px-5 py-8 sm:px-8">
+    <footer className="border-t border-white/10 bg-[#040a14] px-4 py-8 sm:px-8">
       <div className="mx-auto max-w-7xl">
-        <div className="grid gap-8 md:grid-cols-4">
+        <div className="grid gap-8 sm:grid-cols-2 md:grid-cols-4">
           {/* Company Info */}
           <div className="md:col-span-1">
             <div className="flex items-center gap-3">
@@ -23,7 +24,7 @@ function DashboardFooter() {
               </div>
             </div>
             <p className="mt-4 text-sm text-slate-300">
-              Bangladesh's first AI-powered career platform. We help job seekers find their perfect match and prepare for success.
+              Bangladesh&apos;s first AI-powered career platform. We help job seekers find their perfect match and prepare for success.
             </p>
           </div>
 
@@ -41,13 +42,23 @@ function DashboardFooter() {
                 { label: "Portfolio", href: "/dashboard/profile/" },
                 { label: "About Us", href: "#" },
               ].map((item) => (
-                <a
-                  key={item.label}
-                  href={item.href}
-                  className="block text-sm text-slate-300 hover:text-white transition"
-                >
-                  {item.label}
-                </a>
+                item.href.startsWith("/") ? (
+                  <Link
+                    key={item.label}
+                    href={item.href}
+                    className="block text-sm text-slate-300 transition hover:text-white"
+                  >
+                    {item.label}
+                  </Link>
+                ) : (
+                  <a
+                    key={item.label}
+                    href={item.href}
+                    className="block text-sm text-slate-300 transition hover:text-white"
+                  >
+                    {item.label}
+                  </a>
+                )
               ))}
             </div>
           </div>
@@ -88,7 +99,7 @@ function DashboardFooter() {
                 <div>Dhaka, Bangladesh</div>
               </div>
 
-              <div className="flex gap-3">
+              <div className="flex flex-wrap gap-3">
                 {[
                   { name: "Facebook", icon: "📘", href: "#" },
                   { name: "WhatsApp", icon: "💬", href: "#" },
@@ -113,10 +124,10 @@ function DashboardFooter() {
         {/* Bottom Bar */}
         <div className="mt-8 pt-6 border-t border-white/10">
           <div className="flex flex-col items-center justify-between gap-4 md:flex-row">
-            <div className="text-sm text-slate-400">
+            <div className="text-center text-sm text-slate-400 md:text-left">
               © {new Date().getFullYear()} Chakri AI. All Rights Reserved.
             </div>
-            <div className="text-sm text-slate-400">
+            <div className="text-center text-sm text-slate-400 md:text-left">
               Website developed by{" "}
               <a
                 href="https://github.com/gmomorfaruk"
@@ -127,7 +138,7 @@ function DashboardFooter() {
                 Md. Omor Faruk
               </a>
             </div>
-            <div className="flex items-center gap-4 text-xs text-slate-500">
+            <div className="flex flex-wrap items-center justify-center gap-3 text-xs text-slate-500 md:justify-end">
               <span>Made with ❤️ in Bangladesh</span>
               <span className="h-1 w-1 rounded-full bg-slate-500" />
               <span>Bengali & English Supported</span>
@@ -145,7 +156,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
   // ❌ removed overflow-y-auto
   const mainClass = isCoachRoute
-    ? "relative flex-1 min-w-0 bg-background/75"
+    ? "relative flex-1 min-w-0 overflow-x-hidden bg-background/75"
     : "relative flex-1 min-w-0 overflow-x-hidden bg-background/75 px-3 py-2 sm:px-4 sm:py-3 md:px-8 md:py-4";
 
   const contentWrapperClass = isCoachRoute
@@ -159,10 +170,10 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div
-      className="flex min-h-screen w-full bg-background text-foreground"
+      className="flex min-h-screen w-full overflow-x-clip bg-background text-foreground"
       style={rootStyle}
     >
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-h-screen min-w-0 flex-1 flex-col">
         <DashboardNavbar />
 
         <main className={mainClass}>

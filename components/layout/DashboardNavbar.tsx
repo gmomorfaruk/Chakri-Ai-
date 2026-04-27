@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Bell, ChevronDown, LogOut, Menu, Sparkles, User, X } from "lucide-react";
@@ -175,6 +176,140 @@ export function DashboardNavbar() {
     router.push("/sign-in");
   }
 
+  const mobileMenuLayer =
+    mobileMenuOpen && typeof document !== "undefined"
+      ? createPortal(
+          <>
+            <div
+              className="fixed inset-0 z-[80] bg-slate-950/70 md:hidden"
+              onClick={() => setMobileMenuOpen(false)}
+              aria-hidden="true"
+            />
+
+            <section
+              id="dashboard-mobile-nav"
+              className="fixed right-0 top-0 z-[90] h-[100dvh] w-full overflow-y-auto border-l border-white/10 bg-[linear-gradient(180deg,rgba(12,16,28,0.98),rgba(12,16,28,0.95))] p-5 md:hidden sm:w-[min(92vw,24rem)]"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Mobile navigation"
+            >
+              <div className="mb-5 flex items-center justify-between">
+                <p className="text-sm font-medium text-slate-200">Menu</p>
+                <button
+                  type="button"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-300 transition-colors duration-200 hover:bg-white/5 hover:text-slate-100"
+                  aria-label="Close menu"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <nav className="space-y-1" aria-label="Mobile primary navigation">
+                <Link
+                  href={primaryLinks[0].href}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`flex items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-200 ${
+                    isActivePath(pathname, primaryLinks[0].href) ? "bg-white/8 text-slate-100" : "text-slate-300 hover:bg-white/5 hover:text-slate-100"
+                  }`}
+                >
+                  {t(primaryLinks[0].label)}
+                </Link>
+                <Link
+                  href={primaryLinks[1].href}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`flex items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-200 ${
+                    isActivePath(pathname, primaryLinks[1].href) ? "bg-white/8 text-slate-100" : "text-slate-300 hover:bg-white/5 hover:text-slate-100"
+                  }`}
+                >
+                  {t(primaryLinks[1].label)}
+                </Link>
+
+                <div className="rounded-lg">
+                  <button
+                    type="button"
+                    onClick={() => setMobileCoachOpen((prev) => !prev)}
+                    className={`flex w-full items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-200 ${
+                      isCoachActive ? "bg-white/8 text-slate-100" : "text-slate-300 hover:bg-white/5 hover:text-slate-100"
+                    }`}
+                    aria-expanded={mobileCoachOpen}
+                    aria-label="Toggle Career Coach menu"
+                  >
+                    <span>Career Coach</span>
+                    <ChevronDown size={14} className={`ml-auto transition-transform duration-200 ${mobileCoachOpen ? "rotate-180" : ""}`} />
+                  </button>
+
+                  {mobileCoachOpen ? (
+                    <div className="ml-3 mt-1 space-y-1 border-l border-white/10 pl-3">
+                      {coachLinks.map((item) => {
+                        const isItemActive = isCoachActive && activeCoachView === item.view;
+                        return (
+                          <Link
+                            key={item.href}
+                            href={item.href}
+                            onClick={() => {
+                              setMobileCoachOpen(false);
+                              setMobileMenuOpen(false);
+                            }}
+                            className={`flex items-center rounded-lg px-2.5 py-2 text-sm transition-colors duration-200 ${
+                              isItemActive ? "bg-white/8 text-slate-100" : "text-slate-300 hover:bg-white/5 hover:text-slate-100"
+                            }`}
+                          >
+                            {item.isTranslationKey ? t(item.label) : item.label}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+                </div>
+
+                <Link
+                  href={primaryLinks[2].href}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`flex items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-200 ${
+                    isActivePath(pathname, primaryLinks[2].href) ? "bg-white/8 text-slate-100" : "text-slate-300 hover:bg-white/5 hover:text-slate-100"
+                  }`}
+                >
+                  {t(primaryLinks[2].label)}
+                </Link>
+              </nav>
+
+              <div className="mt-5 space-y-2 border-t border-white/10 pt-4">
+                <Link
+                  href="/dashboard/notifications"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-300 transition-colors duration-200 hover:bg-white/5 hover:text-slate-100"
+                >
+                  <Bell size={16} />
+                  <span>{t("notifications")}</span>
+                  <span className="ml-auto inline-flex h-2 w-2 rounded-full bg-cyan-300" aria-hidden="true" />
+                </Link>
+                <Link
+                  href="/dashboard/profile"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-300 transition-colors duration-200 hover:bg-white/5 hover:text-slate-100"
+                >
+                  <User size={16} />
+                  <span>{t("profile")}</span>
+                </Link>
+                <div className="pt-1">
+                  <ThemeSwitcher className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border-0 bg-white/[0.04] text-sm text-slate-200 transition-colors duration-200 hover:bg-white/8" />
+                </div>
+                <button
+                  type="button"
+                  onClick={onSignOut}
+                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-rose-200 transition-colors duration-200 hover:bg-rose-500/10"
+                >
+                  <LogOut size={16} />
+                  <span>{t("signOut")}</span>
+                </button>
+              </div>
+            </section>
+          </>,
+          document.body
+        )
+      : null;
+
   return (
     <>
       <nav className="sticky top-0 z-30 border-b border-white/10 bg-[linear-gradient(180deg,rgba(10,14,24,0.94),rgba(10,14,24,0.82))] backdrop-blur-md">
@@ -297,130 +432,7 @@ export function DashboardNavbar() {
         </div>
       </nav>
 
-      <div
-        className={`fixed inset-0 z-40 bg-slate-950/70 transition-opacity duration-200 md:hidden ${
-          mobileMenuOpen ? "opacity-100" : "pointer-events-none opacity-0"
-        }`}
-        onClick={() => setMobileMenuOpen(false)}
-        aria-hidden="true"
-      />
-
-      <section
-        id="dashboard-mobile-nav"
-        className={`fixed right-0 top-0 z-50 h-[100dvh] w-[min(86vw,20rem)] overflow-y-auto border-l border-white/10 bg-[linear-gradient(180deg,rgba(12,16,28,0.98),rgba(12,16,28,0.95))] p-5 transition-transform duration-300 ease-out md:hidden ${
-          mobileMenuOpen ? "translate-x-0" : "translate-x-full"
-        }`}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Mobile navigation"
-      >
-        <div className="mb-5 flex items-center justify-between">
-          <p className="text-sm font-medium text-slate-200">Menu</p>
-          <button
-            type="button"
-            onClick={() => setMobileMenuOpen(false)}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-300 transition-colors duration-200 hover:bg-white/5 hover:text-slate-100"
-            aria-label="Close menu"
-          >
-            <X size={18} />
-          </button>
-        </div>
-
-        <nav className="space-y-1" aria-label="Mobile primary navigation">
-          <Link
-            href={primaryLinks[0].href}
-            className={`flex items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-200 ${
-              isActivePath(pathname, primaryLinks[0].href) ? "bg-white/8 text-slate-100" : "text-slate-300 hover:bg-white/5 hover:text-slate-100"
-            }`}
-          >
-            {t(primaryLinks[0].label)}
-          </Link>
-          <Link
-            href={primaryLinks[1].href}
-            className={`flex items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-200 ${
-              isActivePath(pathname, primaryLinks[1].href) ? "bg-white/8 text-slate-100" : "text-slate-300 hover:bg-white/5 hover:text-slate-100"
-            }`}
-          >
-            {t(primaryLinks[1].label)}
-          </Link>
-
-          <div className="rounded-lg">
-            <button
-              type="button"
-              onClick={() => setMobileCoachOpen((prev) => !prev)}
-              className={`flex w-full items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-200 ${
-                isCoachActive ? "bg-white/8 text-slate-100" : "text-slate-300 hover:bg-white/5 hover:text-slate-100"
-              }`}
-              aria-expanded={mobileCoachOpen}
-              aria-label="Toggle Career Coach menu"
-            >
-              <span>Career Coach</span>
-              <ChevronDown size={14} className={`ml-auto transition-transform duration-200 ${mobileCoachOpen ? "rotate-180" : ""}`} />
-            </button>
-
-            {mobileCoachOpen ? (
-              <div className="ml-3 mt-1 space-y-1 border-l border-white/10 pl-3">
-                {coachLinks.map((item) => {
-                  const isItemActive = isCoachActive && activeCoachView === item.view;
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      onClick={() => {
-                        setMobileCoachOpen(false);
-                        setMobileMenuOpen(false);
-                      }}
-                      className={`flex items-center rounded-lg px-2.5 py-2 text-sm transition-colors duration-200 ${
-                        isItemActive ? "bg-white/8 text-slate-100" : "text-slate-300 hover:bg-white/5 hover:text-slate-100"
-                      }`}
-                    >
-                      {item.isTranslationKey ? t(item.label) : item.label}
-                    </Link>
-                  );
-                })}
-              </div>
-            ) : null}
-          </div>
-
-          <Link
-            href={primaryLinks[2].href}
-            className={`flex items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-200 ${
-              isActivePath(pathname, primaryLinks[2].href) ? "bg-white/8 text-slate-100" : "text-slate-300 hover:bg-white/5 hover:text-slate-100"
-            }`}
-          >
-            {t(primaryLinks[2].label)}
-          </Link>
-        </nav>
-
-        <div className="mt-5 space-y-2 border-t border-white/10 pt-4">
-          <Link
-            href="/dashboard/notifications"
-            className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-300 transition-colors duration-200 hover:bg-white/5 hover:text-slate-100"
-          >
-            <Bell size={16} />
-            <span>{t("notifications")}</span>
-            <span className="ml-auto inline-flex h-2 w-2 rounded-full bg-cyan-300" aria-hidden="true" />
-          </Link>
-          <Link
-            href="/dashboard/profile"
-            className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-300 transition-colors duration-200 hover:bg-white/5 hover:text-slate-100"
-          >
-            <User size={16} />
-            <span>{t("profile")}</span>
-          </Link>
-          <div className="pt-1">
-            <ThemeSwitcher className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border-0 bg-white/[0.04] text-sm text-slate-200 transition-colors duration-200 hover:bg-white/8" />
-          </div>
-          <button
-            type="button"
-            onClick={onSignOut}
-            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-rose-200 transition-colors duration-200 hover:bg-rose-500/10"
-          >
-            <LogOut size={16} />
-            <span>{t("signOut")}</span>
-          </button>
-        </div>
-      </section>
+      {mobileMenuLayer}
     </>
   );
 }

@@ -1004,19 +1004,19 @@ export function QuizPractice() {
   }
 
   const resultSession = activeResult;
-
   const darkMode = mountedTheme ? resolvedTheme !== "light" : true;
+  const themeScopeClass = darkMode ? "dark" : "light";
 
-  if (!hydrated) {
+  if (!hydrated || !mountedTheme) {
     return (
-      <div className="ui-page flex h-full min-h-0 items-center justify-center p-8">
+      <div className="flex h-full min-h-0 items-center justify-center bg-[#0A0A0F] p-8">
         <div className="ui-skeleton h-24 w-full max-w-md" />
       </div>
     );
   }
 
   return (
-    <div className="chakri-shell h-full min-h-0 w-full overflow-hidden bg-slate-50 text-slate-900 dark:bg-[#0A0A0F] dark:text-[#F1F5F9]">
+    <div className={`${themeScopeClass} h-full min-h-0 w-full overflow-x-hidden overflow-y-hidden bg-slate-50 text-slate-900 dark:bg-[#0A0A0F] dark:text-[#F1F5F9]`}>
       <div className="relative flex h-full min-h-0 w-full flex-col lg:flex-row">
         <aside className="border-b border-slate-200/80 bg-white/75 p-3 backdrop-blur-md dark:border-[#1E1E2E] dark:bg-[#111118]/85 lg:h-full lg:w-[320px] lg:min-w-[320px] lg:border-b-0 lg:border-r lg:p-4">
           <div className="flex h-full min-h-0 flex-col gap-3">
@@ -1158,7 +1158,7 @@ export function QuizPractice() {
             {activeView === "dashboard" ? (
               <div className="space-y-4">
                 <section className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-[#1E1E2E] dark:bg-[#111118] sm:p-5">
-                  <h1 className="text-2xl font-semibold tracking-tight">{getGreeting(store.user.name)} 👋</h1>
+                  <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">{getGreeting(store.user.name)} 👋</h1>
                   <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
                     Keep momentum today. A focused 10-minute quiz can sharpen weak areas quickly.
                   </p>
@@ -1275,7 +1275,7 @@ export function QuizPractice() {
                   </div>
 
                   <div className="mt-3 overflow-x-auto">
-                    <table className="w-full min-w-[860px] border-separate border-spacing-y-2 text-sm">
+                    <table className="w-full min-w-[680px] border-separate border-spacing-y-2 text-sm">
                       <thead>
                         <tr className="text-left text-xs uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
                           <th className="px-2 py-1">Topic</th>
