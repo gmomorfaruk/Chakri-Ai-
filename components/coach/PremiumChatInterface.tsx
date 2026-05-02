@@ -401,7 +401,7 @@ export function PremiumChatInterface() {
     <div className="ui-page flex h-full min-h-0 w-full overflow-hidden bg-gradient-to-b from-[#0f1628] to-[#0a0f1e]">
       <div className="flex h-full min-h-0 w-full min-w-0">
         {/* Sidebar with Progress Bars */}
-        <div className="hidden w-72 flex-col border-r border-white/10 bg-white/[0.02] xl:flex">
+        <div className="hidden w-72 flex-col border-r border-white/10 bg-white/[0.02] lg:flex">
           <div className="border-b border-white/10 px-4 py-3">
             <h3 className="text-sm font-semibold text-slate-200">Session Progress</h3>
             <p className="mt-1 text-xs text-slate-400">Your performance metrics</p>
@@ -500,7 +500,7 @@ export function PremiumChatInterface() {
           </div>
 
           {/* Compact score summary for narrower layouts */}
-          <div className="border-b border-white/10 px-4 py-4 sm:px-6 xl:hidden">
+          <div className="border-b border-white/10 px-4 py-4 sm:px-6 lg:hidden">
             {evaluation ? (
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <CircularProgress
