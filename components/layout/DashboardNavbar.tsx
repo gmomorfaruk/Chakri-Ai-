@@ -2,9 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Bell, ChevronDown, LogOut, Menu, Sparkles, User, X } from "lucide-react";
+import { Bell, ChevronDown, LogOut, Menu, User, X } from "lucide-react";
 import { useI18n } from "@/components/providers/I18nProvider";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
@@ -316,11 +317,20 @@ export function DashboardNavbar() {
         <div className="mx-auto max-w-7xl px-4 sm:px-5 md:px-6">
           <div className="flex h-16 items-center justify-between gap-3 md:h-[68px]">
             <div className="flex min-w-0 items-center gap-3">
-              <Link href="/dashboard" className="inline-flex min-w-0 items-center gap-2" aria-label="Chakri AI">
-                <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-400 to-indigo-500 text-slate-950">
-                  <Sparkles size={15} />
+              <Link href="/dashboard" className="chakri-brand-link inline-flex min-w-0 items-center gap-3" aria-label="Chakri AI">
+                <span className="chakri-brand-mark relative inline-flex h-11 w-11 shrink-0 overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-white/15">
+                  <Image
+                    src="/navbar-icon.png"
+                    alt="Chakri AI logo"
+                    fill
+                    sizes="44px"
+                    priority
+                    className="object-contain p-0.5"
+                  />
                 </span>
-                <span className="truncate text-sm font-medium tracking-tight text-slate-100 sm:text-base">Chakri AI</span>
+                <span className="chakri-brand-wordmark truncate text-[1.05rem] font-extrabold leading-none text-slate-100 sm:text-[1.18rem]">
+                  Chakri <span>AI</span>
+                </span>
               </Link>
 
               <nav className="hidden items-center gap-5 md:flex" aria-label="Primary">

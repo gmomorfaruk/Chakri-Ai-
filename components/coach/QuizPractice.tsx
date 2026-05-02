@@ -122,6 +122,11 @@ type QuizApiResponse = {
   quiz?: {
     title?: string;
     topic?: string;
+    sources?: Array<{
+      title?: string;
+      url?: string;
+      snippet?: string;
+    }>;
     questions?: Array<{
       id?: string;
       question?: string;
@@ -790,6 +795,7 @@ export function QuizPractice() {
           sourceText: sourceText.trim(),
           questionCount: currentQuestionCount,
           difficulty,
+          researchMode: sourceText.trim() ? "off" : "auto",
           excludeQuestionHashes,
           adaptiveContext,
         }),
@@ -1360,7 +1366,7 @@ export function QuizPractice() {
                   <div className="mx-auto max-w-3xl">
                     <h2 className="text-xl font-semibold tracking-tight">Generate an AI Quiz</h2>
                     <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-                      Build focused MCQ sessions from a topic, your weak areas, or your own notes.
+                      Build focused MCQ sessions from a topic, web research, your weak areas, or your own notes.
                     </p>
 
                     <form onSubmit={handleGenerateQuiz} className="mt-5 space-y-4">
