@@ -1,12 +1,13 @@
 "use client";
 
+import { AIVoiceConversation } from "@/components/coach/AIVoiceConversation";
 import { PremiumChatInterface } from "@/components/coach/PremiumChatInterface";
 import { QuizPractice } from "@/components/coach/QuizPractice";
 import { ConversationalLearningAI } from "@/components/learning/ConversationalLearningAI";
 import { useSearchParams } from "next/navigation";
 
-function getInitialView(view: string | null): "chat" | "quiz" | "learning" {
-  if (view === "chat" || view === "quiz" || view === "learning") {
+function getInitialView(view: string | null): "chat" | "quiz" | "learning" | "voice" {
+  if (view === "chat" || view === "quiz" || view === "learning" || view === "voice") {
     return view;
   }
 
@@ -24,6 +25,11 @@ export function AICoachModule() {
         {view === "chat" && (
           <div className="h-full min-h-0 w-full overflow-hidden">
             <PremiumChatInterface />
+          </div>
+        )}
+        {view === "voice" && (
+          <div className="h-full min-h-0 w-full overflow-hidden">
+            <AIVoiceConversation mode="hr" />
           </div>
         )}
         {view === "learning" && (

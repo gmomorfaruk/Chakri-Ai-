@@ -443,28 +443,32 @@ function mockReply(input: CoachReplyRequest) {
 export async function generateCoachReply(input: CoachReplyRequest) {
   const provider = (process.env.AI_PROVIDER || "mock").toLowerCase();
 
-  if (provider === "gemini") {
-    const gemini = await geminiReply(input);
-    if (gemini) {
-      const reply = input.assistantType === "learning" ? gemini : enforceInterviewFormat(gemini, input.mode, input.message, input.history ?? []);
-      return { reply, provider: "gemini" as const };
+  try {
+    if (provider === "gemini") {
+      const gemini = await geminiReply(input);
+      if (gemini) {
+        const reply = input.assistantType === "learning" ? gemini : enforceInterviewFormat(gemini, input.mode, input.message, input.history ?? []);
+        return { reply, provider: "gemini" as const };
+      }
     }
-  }
 
-  if (provider === "openai") {
-    const openAi = await openAiReply(input);
-    if (openAi) {
-      const reply = input.assistantType === "learning" ? openAi : enforceInterviewFormat(openAi, input.mode, input.message, input.history ?? []);
-      return { reply, provider: "openai" as const };
+    if (provider === "openai") {
+      const openAi = await openAiReply(input);
+      if (openAi) {
+        const reply = input.assistantType === "learning" ? openAi : enforceInterviewFormat(openAi, input.mode, input.message, input.history ?? []);
+        return { reply, provider: "openai" as const };
+      }
     }
-  }
 
-  if (provider === "huggingface") {
-    const huggingFace = await huggingFaceReply(input);
-    if (huggingFace) {
-      const reply = input.assistantType === "learning" ? huggingFace : enforceInterviewFormat(huggingFace, input.mode, input.message, input.history ?? []);
-      return { reply, provider: "huggingface" as const };
+    if (provider === "huggingface") {
+      const huggingFace = await huggingFaceReply(input);
+      if (huggingFace) {
+        const reply = input.assistantType === "learning" ? huggingFace : enforceInterviewFormat(huggingFace, input.mode, input.message, input.history ?? []);
+        return { reply, provider: "huggingface" as const };
+      }
     }
+  } catch (error) {
+    console.error("AI provider failed; falling back to local coach response.", error);
   }
 
   return { reply: mockReply(input), provider: "mock" as const };

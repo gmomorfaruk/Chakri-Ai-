@@ -163,57 +163,74 @@ export function PremiumChatInterface() {
 
     setError(null);
     const trimmedText = text.trim();
-
-    // Ensure we have a session
-    let sessionId = activeSessionId;
-    if (!sessionId) {
-      sessionId = await createNewSession();
-      if (!sessionId) return;
-    }
-
-    // Skip accidental immediate duplicate user send in the same session.
-    const { data: latestUserMessage } = await supabase
-      .from("coach_messages")
-      .select("content, created_at")
-      .eq("session_id", sessionId)
-      .eq("role", "user")
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle<{ content: string; created_at: string }>();
-
-    if (latestUserMessage) {
-      const sameContent = latestUserMessage.content.trim() === trimmedText;
-      const ageMs = Date.now() - Date.parse(latestUserMessage.created_at || "");
-      if (sameContent && Number.isFinite(ageMs) && ageMs >= 0 && ageMs < 5000) {
-        sendingRef.current = false;
-        setIsThinking(false);
-        return;
-      }
-    }
-
-    // Add user message
-    const { error: userMsgError } = await addCoachMessage(supabase, {
-      session_id: sessionId,
-      user_id: userId,
-      role: "user",
-      content: trimmedText,
-    });
-
-    if (userMsgError) {
-      setError(userMsgError.message);
-      return;
-    }
-
-    // Reload messages immediately and use this exact snapshot as history.
-    const latestMessages = (await loadSession(sessionId)) ?? [];
-
-    // Prepare history
-    const history = latestMessages
-      .slice(-8)
-      .map((m) => ({ role: m.role === "assistant" ? "assistant" : "user", content: m.content }))
-      .filter((m) => m.content.trim().length > 0);
+    let sessionIdForRecovery = activeSessionId;
 
     try {
+      // Ensure we have a session
+      let sessionId = activeSessionId;
+      if (!sessionId) {
+        sessionId = await createNewSession();
+        if (!sessionId) return;
+      }
+      sessionIdForRecovery = sessionId;
+
+      // Skip accidental immediate duplicate user send in the same session.
+      const { data: latestUserMessage } = await supabase
+        .from("coach_messages")
+        .select("content, created_at")
+        .eq("session_id", sessionId)
+        .eq("role", "user")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle<{ content: string; created_at: string }>();
+
+      if (latestUserMessage) {
+        const sameContent = latestUserMessage.content.trim() === trimmedText;
+        const ageMs = Date.now() - Date.parse(latestUserMessage.created_at || "");
+        if (sameContent && Number.isFinite(ageMs) && ageMs >= 0 && ageMs < 5000) {
+          return;
+        }
+      }
+
+      // Add user message
+      const { error: userMsgError } = await addCoachMessage(supabase, {
+        session_id: sessionId,
+        user_id: userId,
+        role: "user",
+        content: trimmedText,
+      });
+
+      if (userMsgError) {
+        setError(userMsgError.message);
+        return;
+      }
+
+      // Generate and save the local evaluation before calling AI so scores still
+      // appear if the external AI provider is unavailable in production.
+      const evalPayload = localEvaluateAnswer(trimmedText);
+      const { data: savedEvaluation, error: evalError } = await addCoachEvaluation(supabase, {
+        session_id: sessionId,
+        user_id: userId,
+        ...evalPayload,
+      });
+
+      if (savedEvaluation) {
+        setEvaluation(savedEvaluation);
+      }
+
+      if (evalError) {
+        setError(evalError.message);
+      }
+
+      // Reload messages immediately and use this exact snapshot as history.
+      const latestMessages = (await loadSession(sessionId)) ?? [];
+
+      // Prepare history
+      const history = latestMessages
+        .slice(-8)
+        .map((m) => ({ role: m.role === "assistant" ? "assistant" : "user", content: m.content }))
+        .filter((m) => m.content.trim().length > 0);
+
       // Fetch AI response
       const aiRes = await fetch("/api/coach/respond", {
         method: "POST",
@@ -273,18 +290,6 @@ export function PremiumChatInterface() {
       stopTypingEffect();
       setStreamingText("");
 
-      // Generate and save evaluation
-      const evalPayload = localEvaluateAnswer(trimmedText);
-      const { error: evalError } = await addCoachEvaluation(supabase, {
-        session_id: sessionId,
-        user_id: userId,
-        ...evalPayload,
-      });
-
-      if (evalError) {
-        setError(evalError.message);
-      }
-
       void syncAdaptiveSignals(supabase, {
         signals: [
           {
@@ -323,6 +328,12 @@ export function PremiumChatInterface() {
 
       // Reload to get fresh data
       await loadSession(sessionId);
+    } catch (sendError) {
+      const message = sendError instanceof Error ? sendError.message : t("coachAiFailed");
+      setError(message || t("coachAiFailed"));
+      if (sessionIdForRecovery) {
+        await loadSession(sessionIdForRecovery);
+      }
     } finally {
       stopTypingEffect();
       sendingRef.current = false;
@@ -486,6 +497,36 @@ export function PremiumChatInterface() {
                 </select>
               </div>
             </div>
+          </div>
+
+          {/* Compact score summary for narrower layouts */}
+          <div className="border-b border-white/10 px-4 py-4 sm:px-6 xl:hidden">
+            {evaluation ? (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <CircularProgress
+                  value={evaluation.answer_clarity_score}
+                  label="Clarity"
+                  color="cyan"
+                  size="sm"
+                />
+                <CircularProgress
+                  value={evaluation.confidence_score}
+                  label="Confidence"
+                  color="blue"
+                  size="sm"
+                />
+                <CircularProgress
+                  value={evaluation.relevance_score}
+                  label="Relevance"
+                  color="purple"
+                  size="sm"
+                />
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-slate-400">
+                Start chatting to see your progress metrics.
+              </div>
+            )}
           </div>
 
           {/* Chat Area */}

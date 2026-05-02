@@ -15,19 +15,23 @@ export async function fetchAdaptiveSnapshot(supabase: SupabaseClient | null) {
   const token = await getAccessToken(supabase);
   if (!token) return null;
 
-  const response = await fetch("/api/intelligence/sync", {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-    cache: "no-store",
-  });
+  try {
+    const response = await fetch("/api/intelligence/sync", {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      cache: "no-store",
+    });
 
-  const payload = (await response.json().catch(() => null)) as unknown;
-  if (!response.ok || !payload || typeof payload !== "object" || !("profile" in payload) || !("context" in payload)) {
+    const payload = (await response.json().catch(() => null)) as unknown;
+    if (!response.ok || !payload || typeof payload !== "object" || !("profile" in payload) || !("context" in payload)) {
+      return null;
+    }
+
+    return payload as AdaptiveSyncResponse;
+  } catch {
     return null;
   }
-
-  return payload as AdaptiveSyncResponse;
 }
 
 export async function syncAdaptiveSignals(supabase: SupabaseClient | null, body: AdaptiveSyncRequest) {
@@ -36,19 +40,23 @@ export async function syncAdaptiveSignals(supabase: SupabaseClient | null, body:
   const token = await getAccessToken(supabase);
   if (!token) return null;
 
-  const response = await fetch("/api/intelligence/sync", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(body),
-  });
+  try {
+    const response = await fetch("/api/intelligence/sync", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(body),
+    });
 
-  const payload = (await response.json().catch(() => null)) as unknown;
-  if (!response.ok || !payload || typeof payload !== "object" || !("profile" in payload) || !("context" in payload)) {
+    const payload = (await response.json().catch(() => null)) as unknown;
+    if (!response.ok || !payload || typeof payload !== "object" || !("profile" in payload) || !("context" in payload)) {
+      return null;
+    }
+
+    return payload as AdaptiveSyncResponse;
+  } catch {
     return null;
   }
-
-  return payload as AdaptiveSyncResponse;
 }
